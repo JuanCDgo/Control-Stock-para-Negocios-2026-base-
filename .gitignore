@@ -1,0 +1,32 @@
+# Entornos virtuales
+.venv/
+venv/
+ENV/
+env/
+*.venv
+
+# Variables de entorno y secretos
+.env
+.streamlit/secrets.toml
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos de base de datos local (SQLite si hubiera, aunque usamos Supabase)
+gestion_negocio.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos subidos por usuarios
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Scripts de fix temporales
+fix*.py
