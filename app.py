@@ -296,11 +296,12 @@ def borrar_archivo_imagen_local(ruta: Optional[str]) -> None:
 # ==============================================================================
 MODULOS_CAJERO = [
     "🛒 Punto de Venta (POS)",
-    "⚖️ Arqueo de Caja / Control Diario",
-    "💵 Cuentas Corrientes / Clientes",
+    "👥 Cuentas Corrientes / Clientes",
 ]
 MODULOS_ADMIN = MODULOS_CAJERO + [
     "📦 Productos e Inventario",
+    "🏷️ Categorías",
+    "📊 Arqueo de Caja / Control Diario",
     "⚙️ Configuración del Negocio",
 ]
 
@@ -419,27 +420,7 @@ with st.sidebar.expander("🔑 Cambiar mi PIN"):
 
 st.sidebar.markdown("---")
 
-if "modulo_activo" not in st.session_state:
-    st.session_state["modulo_activo"] = "🛒 Punto de Venta (POS)"
-# Auto correction if module is not in permitted
-if st.session_state["modulo_activo"] not in modulos_permitidos:
-    st.session_state["modulo_activo"] = modulos_permitidos[0]
-
-st.sidebar.markdown("### 🛠️ OPERACIÓN")
-for mod in ["🛒 Punto de Venta (POS)", "⚖️ Arqueo de Caja / Control Diario", "💵 Cuentas Corrientes / Clientes"]:
-    if mod in modulos_permitidos:
-        if st.sidebar.button(mod, use_container_width=True, type="primary" if st.session_state["modulo_activo"] == mod else "secondary", key=f"nav_{mod}"):
-            st.session_state["modulo_activo"] = mod
-            st.rerun()
-
-st.sidebar.markdown("### 🏢 ADMINISTRACIÓN")
-for mod in ["📦 Productos e Inventario", "⚙️ Configuración del Negocio"]:
-    if mod in modulos_permitidos:
-        if st.sidebar.button(mod, use_container_width=True, type="primary" if st.session_state["modulo_activo"] == mod else "secondary", key=f"nav_{mod}"):
-            st.session_state["modulo_activo"] = mod
-            st.rerun()
-
-modulo = st.session_state["modulo_activo"]
+modulo = st.sidebar.radio("Navegación", modulos_permitidos)
 
 # Guardia defensiva: aunque el menú ya está filtrado, nunca se renderiza un módulo no permitido
 if modulo not in modulos_permitidos:
@@ -515,161 +496,503 @@ if total_deuda_side > 0:
 # ==============================================================================
 # MÓDULO 1: PUNTO DE VENTA (POS) CON LECTOR DE BARRAS & CUENTA CORRIENTE
 # ==============================================================================
-def _agregar_al_carrito(p, cantidad=1.0):
-    idx = next((i for i, x in enumerate(st.session_state.carrito) if x["id"] == p["id"]), -1)
-    if idx >= 0:
-        st.session_state.carrito[idx]["cantidad"] += cantidad
-        st.session_state.carrito[idx]["subtotal"] = round(st.session_state.carrito[idx]["cantidad"] * p["precio_venta"], 2)
-    else:
-        st.session_state.carrito.append({
-            "id": p["id"],
-            "codigo": p["codigo"],
-            "nombre": p["nombre"],
-            "precio": float(p["precio_venta"]),
-            "cantidad": cantidad,
-            "subtotal": round(cantidad * p["precio_venta"], 2),
-            "imagen_path": p.get("imagen_path")
-        })
-
-def _procesar_busqueda():
-    termino = st.session_state.get("pos_busqueda_input", "").strip()
-    if termino:
-        # Check explicit barcode match first
-        p_codigo = models.obtener_producto_por_codigo(termino)
-        if p_codigo:
-            _agregar_al_carrito(p_codigo)
-            st.session_state.pos_busqueda_input = ""
-            st.session_state.pos_busqueda = ""
-            return
-
-        # General search
-        prods = models.obtener_productos(busqueda=termino)
-        if len(prods) == 1:
-            _agregar_al_carrito(prods[0])
-            st.session_state.pos_busqueda_input = ""
-            st.session_state.pos_busqueda = ""
-        else:
-            st.session_state.pos_busqueda = termino
-    else:
-        st.session_state.pos_busqueda = ""
-
 if modulo == "🛒 Punto de Venta (POS)":
     st.header("🛒 Terminal de Punto de Venta")
-    
-    col_izq, col_der = st.columns([3, 2], gap="large")
-    
+
+    # 1. INTEGRACIÓN CON LECTORA DE CÓDIGO DE BARRAS (EAN / SKU)
+    with st.form("form_barcode_scanner", clear_on_submit=True):
+        col_scan_txt, col_scan_btn = st.columns([3.5, 1], gap="small")
+        with col_scan_txt:
+            barcode_in = st.text_input(
+                "🔍 Escanear Código de Barras (EAN / SKU):",
+                placeholder="Pase el lector óptico aquí o ingrese el código y presione Enter...",
+                key="barcode_scanner_field"
+            )
+        with col_scan_btn:
+            st.write("")
+            btn_scan = st.form_submit_button("⚡ Cargar por Código", use_container_width=True)
+
+        if btn_scan and barcode_in:
+            prod_esc = models.obtener_producto_por_codigo(barcode_in)
+            if not prod_esc:
+                st.error(f"❌ Código '{barcode_in}' no registrado en el catálogo.")
+            else:
+                cant_en_cart = sum(it["cantidad"] for it in st.session_state.carrito if it["producto_id"] == prod_esc["id"])
+                if prod_esc["stock_actual"] - cant_en_cart <= 0:
+                    st.error(f"❌ Stock insuficiente para '{prod_esc['nombre']}' (Stock actual: {prod_esc['stock_actual']}).")
+                else:
+                    encontrado = False
+                    for it in st.session_state.carrito:
+                        if it["producto_id"] == prod_esc["id"]:
+                            it["cantidad"] += 1
+                            it["subtotal"] = round(it["cantidad"] * it["precio_unitario"], 2)
+                            encontrado = True
+                            break
+                    if not encontrado:
+                        st.session_state.carrito.append({
+                            "producto_id": prod_esc["id"],
+                            "codigo": prod_esc["codigo"],
+                            "nombre": prod_esc["nombre"],
+                            "precio_unitario": prod_esc["precio_venta"],
+                            "cantidad": 1,
+                            "subtotal": round(prod_esc["precio_venta"], 2),
+                            "imagen_path": prod_esc.get("imagen_path")
+                        })
+                    st.toast(f"🛒 Agregado: {prod_esc['nombre']} x1 ($ {prod_esc['precio_venta']:,.2f})", icon="📦")
+                    st.rerun()
+
+    st.markdown("---")
+
+    col_izq, col_der = st.columns([1.05, 1.35], gap="medium")
+
     with col_izq:
-        st.subheader("🔍 Búsqueda y Selección")
-        st.text_input("Buscar por nombre o escanear código de barras y presionar Enter:", key="pos_busqueda_input", on_change=_procesar_busqueda)
-        
-        busqueda_activa = st.session_state.get("pos_busqueda", "")
-        if busqueda_activa:
-            productos_mostrar = models.obtener_productos(busqueda=busqueda_activa)
+        c_tit, c_vista = st.columns([1.5, 1.5], gap="small")
+        with c_tit:
+            st.subheader("Búsqueda Manual")
+        with c_vista:
+            opciones_vista = ["Grande", "Compacta", "Sin imagen"]
+            valor_actual = st.session_state.get("pos_vista_ficha", "Compacta")
+            vista_idx = opciones_vista.index(valor_actual) if valor_actual in opciones_vista else 1
+            vista_elegida = st.radio(
+                "Vista Ficha:",
+                options=opciones_vista,
+                index=vista_idx,
+                horizontal=True,
+                key="radio_pos_vista_ficha",
+                help="Ajustá el tamaño visual de la ficha del producto."
+            )
+            st.session_state.pos_vista_ficha = vista_elegida
+
+        productos_db = models.obtener_productos()
+        if len(productos_db) == 0:
+            st.warning("⚠️ No hay productos registrados. Por favor, agregue productos en la sección de Inventario.")
         else:
-            productos_mostrar = models.obtener_productos()
-            productos_mostrar = productos_mostrar[:15] # Top 15 by default
-            
-        if not productos_mostrar:
-            st.info("No se encontraron productos.")
-        else:
-            for p in productos_mostrar:
-                with st.container(border=True):
-                    c_img, c_info, c_btn = st.columns([1, 3, 1], gap="small")
-                    with c_img:
-                        img_abs = obtener_ruta_imagen_absoluta(p.get("imagen_path"))
-                        if img_abs:
-                            st.image(img_abs, width=44)
+            prods_todos = productos_db.to_dict('records') if hasattr(productos_db, "to_dict") else productos_db
+
+            # 1. Filtro previo por Categoría
+            categorias = models.obtener_categorias()
+            opciones_cat = {"Todas las categorías": None}
+            for c in categorias:
+                opciones_cat[c["nombre"]] = c["id"]
+
+            cat_seleccionada = st.selectbox(
+                "Filtrar por Categoría:",
+                options=list(opciones_cat.keys()),
+                key="pos_filtro_cat"
+            )
+            cat_id_filtro = opciones_cat[cat_seleccionada]
+
+            if cat_id_filtro is not None:
+                prods_lista = [p for p in prods_todos if p.get("categoria_id") == cat_id_filtro]
+            else:
+                prods_lista = prods_todos
+
+            if not prods_lista:
+                st.info(f"ℹ️ No hay productos registrados en la categoría '{cat_seleccionada}'.")
+            else:
+                # 2. Selector de Producto limpio: únicamente Nombre - $Precio
+                prod_info = st.selectbox(
+                    "Seleccionar de la lista:",
+                    options=prods_lista,
+                    format_func=lambda p: f"{p['nombre']} - ${p['precio_venta']:,.2f}",
+                    key="pos_select_producto"
+                )
+
+                stock_actual = float(prod_info.get("stock_actual", 0))
+                stock_minimo = float(prod_info.get("stock_minimo", 0))
+                es_critico = stock_actual <= stock_minimo
+
+                # 3. Renderizado dinámico de la ficha según la vista elegida
+                if st.session_state.pos_vista_ficha == "Grande":
+                    with st.container(border=True):
+                        col_foto, col_datos = st.columns([1, 2])
+                        with col_foto:
+                            img_abs = obtener_ruta_imagen_absoluta(prod_info.get("imagen_path"))
+                            if img_abs:
+                                st.image(img_abs, caption=prod_info["nombre"], width=120)
+                            else:
+                                st.markdown(
+                                    """
+                                    <div style="border: 2px dashed #bbb; border-radius: 8px; padding: 25px; text-align: center; color: #777;">
+                                        📷<br><small>Sin foto</small>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        with col_datos:
+                            st.subheader(prod_info["nombre"])
+                            st.markdown(f"**Código:** `{prod_info['codigo']}`")
+                            st.markdown(f"**Precio de Venta:** ${prod_info['precio_venta']:,.2f}`")
+                            
+                            if es_critico:
+                                st.markdown(
+                                    f"<div style='background-color: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; font-weight: bold;'>"
+                                    f"⚠️ ¡ALERTA DE STOCK CRÍTICO! — Stock disponible: **{stock_actual:g}** unidades (Umbral mínimo: **{stock_minimo:g}**)."
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                st.success(f"✅ Stock disponible: **{stock_actual:g}** unidades (Mínimo: {stock_minimo:g})")
+
+                elif st.session_state.pos_vista_ficha == "Compacta":
+                    with st.container(border=True):
+                        col_thumb, col_datos = st.columns([0.8, 3.2], gap="small")
+                        with col_thumb:
+                            img_abs = obtener_ruta_imagen_absoluta(prod_info.get("imagen_path"))
+                            if img_abs:
+                                st.image(img_abs, width=80)
+                            else:
+                                st.markdown(
+                                    """
+                                    <div style="border: 1px dashed #bbb; border-radius: 8px; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #888; background: #fafafa;">
+                                        📦
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        with col_datos:
+                            st.markdown(f"**{prod_info['nombre']}** (`{prod_info['codigo']}`)")
+                            st.markdown(f"💰 **Precio:** **${prod_info['precio_venta']:,.2f}**")
+                            if es_critico:
+                                st.markdown(
+                                    f"<div style='color: #c62828; font-size: 0.88rem; font-weight: bold; background: #fee2e2; padding: 3px 8px; border-radius: 4px; display: inline-block;'>"
+                                    f"⚠️ Stock Crítico: {stock_actual:g} (Mín: {stock_minimo:g})"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                st.markdown(
+                                    f"<div style='color: #166534; font-size: 0.88rem; font-weight: bold; background: #dcfce7; padding: 3px 8px; border-radius: 4px; display: inline-block;'>"
+                                    f"✅ Stock: {stock_actual:g} unid. (Mín: {stock_minimo:g})"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+
+                else:  # "Sin imagen"
+                    with st.container(border=True):
+                        c_nom, c_pre, c_stk = st.columns([2.2, 1.2, 1.6], gap="small")
+                        with c_nom:
+                            st.markdown(f"**{prod_info['nombre']}** (`{prod_info['codigo']}`)")
+                        with c_pre:
+                            st.markdown(f"💰 **${prod_info['precio_venta']:,.2f}**")
+                        with c_stk:
+                            if es_critico:
+                                st.markdown(
+                                    f"<div style='color: #c62828; font-weight: bold; font-size: 0.85rem; background: #fee2e2; padding: 3px 6px; border-radius: 4px; text-align: center;'>"
+                                    f"⚠️ Stock: {stock_actual:g}"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                st.markdown(
+                                    f"<div style='color: #166534; font-weight: bold; font-size: 0.85rem; background: #dcfce7; padding: 3px 6px; border-radius: 4px; text-align: center;'>"
+                                    f"✅ Stock: {stock_actual:g}"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+                
+                cant_en_carrito = sum(
+                    item["cantidad"] for item in st.session_state.carrito if item["producto_id"] == prod_info["id"]
+                )
+                disponible_para_agregar = stock_actual - cant_en_carrito
+                
+                col_cant, col_btn = st.columns([1.15, 1.05], gap="medium")
+                with col_cant:
+                    tipo_venta = st.radio("¿Vender por?", ["Cantidad / Peso", "Monto ($)"], horizontal=True)
+
+                    if tipo_venta == "Cantidad / Peso":
+                        # Accesos rápidos de peso/fracción de un clic (on_click: el callback se
+                        # ejecuta antes del re-render, por eso puede modificar la key del widget)
+                        c_q1, c_q2, c_q3, c_q4 = st.columns(4)
+                        with c_q1:
+                            st.button("250 g", key="btn_q_250", use_container_width=True,
+                                      on_click=_set_pos_cant, args=(0.250,))
+                        with c_q2:
+                            st.button("500 g", key="btn_q_500", use_container_width=True,
+                                      on_click=_set_pos_cant, args=(0.500,))
+                        with c_q3:
+                            st.button("1 kg", key="btn_q_1kg", use_container_width=True,
+                                      on_click=_set_pos_cant, args=(1.000,))
+                        with c_q4:
+                            st.button("+1", key="btn_q_plus1", use_container_width=True,
+                                      on_click=_sumar_pos_cant, args=(1.0,))
+
+                        # Reseteo pendiente tras agregar al carrito (o key perdida): debe
+                        # aplicarse ANTES de instanciar el widget.
+                        if st.session_state.pop("_pos_reset_cant", False) or "pos_cant_val" not in st.session_state:
+                            st.session_state["pos_cant_val"] = 1.0
+
+                        cantidad = st.number_input(
+                            "Cantidad / Peso:",
+                            min_value=0.001,
+                            step=1.0,
+                            format="%.3f",
+                            key="pos_cant_val"
+                        )
+                    else:
+                        monto = st.number_input(
+                            "Monto en plata ($):",
+                            min_value=0.0,
+                            value=None,
+                            placeholder="Monto a cobrar...",
+                            step=100.0,
+                            key="pos_monto_input"
+                        )
+                        if monto and monto > 0 and prod_info["precio_venta"] > 0:
+                            cantidad = round(monto / prod_info["precio_venta"], 4)
+                            st.info(f"⚖️ Equivale a **{cantidad:g}** unidades/kg")
                         else:
-                            st.markdown("<div style='font-size: 20px; text-align: center; margin-top: 4px;'>📷</div>", unsafe_allow_html=True)
-                    with c_info:
-                        st.markdown(f"**{p['nombre']}** (Stock: {p['stock_actual']:g})")
-                        st.caption(f"Código: {p['codigo']} | Precio: **${p['precio_venta']:.2f}**")
-                    with c_btn:
-                        if st.button("➕ Agregar", key=f"btn_add_{p['id']}", use_container_width=True):
-                            _agregar_al_carrito(p)
+                            cantidad = 0.0
+
+                with col_btn:
+                    st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True)
+                    deshabilitar_agregar = (disponible_para_agregar <= 0) or (cantidad <= 0)
+                    if st.button("➕ AGREGAR AL CARRITO", type="primary", disabled=deshabilitar_agregar, use_container_width=True):
+                        if disponible_para_agregar <= 0:
+                            st.error("No hay más unidades disponibles de este producto.")
+                        elif cantidad <= 0:
+                            st.warning("Ingrese una cantidad o monto válido.")
+                        else:
+                            encontrado = False
+                            for item in st.session_state.carrito:
+                                if item["producto_id"] == prod_info["id"]:
+                                    item["cantidad"] += cantidad
+                                    item["subtotal"] = round(item["cantidad"] * item["precio_unitario"], 2)
+                                    encontrado = True
+                                    break
+                            if not encontrado:
+                                st.session_state.carrito.append({
+                                    "producto_id": prod_info["id"],
+                                    "codigo": prod_info["codigo"],
+                                    "nombre": prod_info["nombre"],
+                                    "precio_unitario": prod_info["precio_venta"],
+                                    "cantidad": cantidad,
+                                    "subtotal": round(cantidad * prod_info["precio_venta"], 2),
+                                    "imagen_path": prod_info.get("imagen_path")
+                                })
+                            # Resetear cantidad a 1.0 para el siguiente artículo. El widget ya
+                            # fue instanciado en este run, así que no se puede tocar su key
+                            # acá: se deja una bandera que se aplica ANTES de dibujarlo.
+                            st.session_state["_pos_reset_cant"] = True
+                            st.toast(f"✅ Agregado: {prod_info['nombre']} x{cantidad:g} (${cantidad * prod_info['precio_venta']:,.2f})", icon="🛒")
                             st.rerun()
 
+    # Panel derecho: Carrito de compras, Selector de Cliente, Medio de pago y Cobro
     with col_der:
-        st.subheader("🛒 Ticket de Venta")
-        
-        if not st.session_state.carrito:
-            st.info("El carrito está vacío.")
-        else:
-            total = 0.0
-            for i, item in enumerate(st.session_state.carrito):
-                with st.container(border=True):
-                    c_info, c_minus, c_qty, c_plus, c_del = st.columns([4, 1, 1, 1, 1], gap="small")
-                    with c_info:
-                        st.markdown(f"**{item['nombre']}**")
-                        st.caption(f"${item['precio']:.2f} x {item['cantidad']:g} = **${item['subtotal']:.2f}**")
-                    with c_minus:
-                        if st.button("➖", key=f"minus_{i}", use_container_width=True):
-                            if item["cantidad"] > 1:
-                                st.session_state.carrito[i]["cantidad"] -= 1.0
-                                st.session_state.carrito[i]["subtotal"] = round(st.session_state.carrito[i]["cantidad"] * item["precio"], 2)
-                                st.rerun()
-                    with c_qty:
-                        st.markdown(f"<div style='text-align:center; padding-top:6px; font-weight:bold;'>{item['cantidad']:g}</div>", unsafe_allow_html=True)
-                    with c_plus:
-                        if st.button("➕", key=f"plus_{i}", use_container_width=True):
-                            st.session_state.carrito[i]["cantidad"] += 1.0
-                            st.session_state.carrito[i]["subtotal"] = round(st.session_state.carrito[i]["cantidad"] * item["precio"], 2)
-                            st.rerun()
-                    with c_del:
-                        if st.button("❌", key=f"del_{i}", use_container_width=True):
-                            st.session_state.carrito.pop(i)
-                            st.rerun()
-                total += item["subtotal"]
-                
-            st.markdown(f"<h1 style='text-align: right; color: #16A34A; font-size: 2.2rem;'>TOTAL: ${total:,.2f}</h1>", unsafe_allow_html=True)
-            
-            st.markdown("---")
-            st.subheader("💵 Medio de Pago")
-            forma_pago = st.radio("Seleccione el medio de pago:", ["Efectivo", "Transferencia / Débito", "Cuenta Corriente"], horizontal=True, label_visibility="collapsed")
-            
-            cliente_id = None
-            if forma_pago == "Cuenta Corriente":
-                clientes = models.obtener_clientes()
-                if not clientes:
-                    st.warning("No hay clientes registrados.")
-                else:
-                    opciones = {c["id"]: f"{c['nombre']} (Límite: ${c['limite_credito']})" for c in clientes}
-                    cliente_id = st.selectbox("Seleccionar Cliente (Fiado):", options=list(opciones.keys()), format_func=lambda x: opciones[x])
-            elif forma_pago == "Efectivo":
-                paga_con = st.number_input("Paga con ($):", min_value=0.0, step=100.0, format="%.2f")
-                if paga_con > 0:
-                    vuelto = paga_con - total
-                    if vuelto >= 0:
-                        st.success(f"**Vuelto a entregar: ${vuelto:,.2f}**")
+        st.subheader("Carrito Actual")
+
+        # 1. Selector opcional de Cliente en la cabecera del carrito
+        clientes_pos = models.obtener_clientes()
+        opciones_clientes = ["Consumidor Final"]
+        mapa_clientes = {}
+        for c in clientes_pos:
+            lbl = f"{c['nombre']} (Tel: {c.get('telefono') or 'S/T'} | Deuda: ${c['saldo_deudor']:,.2f})"
+            opciones_clientes.append(lbl)
+            mapa_clientes[lbl] = c
+
+        cliente_elegido_label = st.selectbox(
+            "👤 Cliente:",
+            opciones_clientes,
+            help="Por defecto Consumidor Final. Seleccioná un cliente para asociar la venta, cuenta corriente o enviar comprobante por WhatsApp."
+        )
+        cliente_pos = mapa_clientes.get(cliente_elegido_label)
+        cliente_pos_id = cliente_pos["id"] if cliente_pos else None
+
+        if cliente_pos_id:
+            total_venta_previa = round(sum(item["subtotal"] for item in st.session_state.carrito), 2)
+            pts_actual = cliente_pos.get('puntos', 0)
+            pts_sumar = round(total_venta_previa * 0.01, 2)
+            if total_venta_previa > 0:
+                st.success(f"🏷️ **Puntos Acumulados:** {pts_actual:,.2f} pts  |  ✨ **Esta compra sumará:** +{pts_sumar:,.2f} pts")
+            else:
+                st.info(f"🏷️ **Puntos Acumulados:** {pts_actual:,.2f} pts")
+
+        # 2. Bloque de Comprobante / Ticket recién emitido (si existe)
+        if "ultimo_ticket" in st.session_state and st.session_state["ultimo_ticket"]:
+            tk = st.session_state["ultimo_ticket"]
+            with st.container(border=True):
+                st.markdown(f"#### 🧾 Comprobante: Ticket #{tk['venta_id']}")
+                st.caption(f"Cliente: **{tk['cliente_nombre']}** | Total: **${tk['total']:,.2f}** ({tk['forma_pago']})")
+
+                c_pdf, c_wa = st.columns([1, 1], gap="small")
+                with c_pdf:
+                    st.download_button(
+                        label="📄 Descargar Ticket (PDF 80mm)",
+                        data=tk["pdf_bytes"],
+                        file_name=f"ticket_{tk['venta_id']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                with c_wa:
+                    tel = tk.get("cliente_telefono")
+                    if tel:
+                        msg_whatsapp = reportes.armar_mensaje_whatsapp_ticket(tk)
+                        wa_url = reportes.armar_url_whatsapp(tel, msg_whatsapp)
+                        st.link_button("📲 Enviar por WhatsApp", url=wa_url, use_container_width=True)
                     else:
-                        st.error(f"Faltan ${abs(vuelto):,.2f}")
-                        
-            st.write("")
-            c_cobrar, c_vaciar = st.columns(2, gap="small")
-            with c_cobrar:
-                if st.button("✅ Cobrar / Confirmar", type="primary", use_container_width=True):
-                    try:
-                        if forma_pago == "Cuenta Corriente" and not cliente_id:
-                            st.error("Debe seleccionar un cliente para fiar.")
+                        st.caption("ℹ️ Sin teléfono para WhatsApp")
+
+                if st.button("✖️ Cerrar Comprobante", key="btn_cerrar_tk", use_container_width=True):
+                    del st.session_state["ultimo_ticket"]
+                    st.rerun()
+
+        # 3. Lista de productos del carrito
+        if not st.session_state.carrito:
+            st.info("El carrito está vacío. Agregue artículos escaneando o desde el panel izquierdo.")
+        else:
+            for idx, item in enumerate(st.session_state.carrito):
+                with st.container(border=True):
+                    c_img, c_info, c_sub, c_del = st.columns([0.6, 2.7, 1.4, 0.6], gap="small")
+                    with c_img:
+                        img_item = obtener_ruta_imagen_absoluta(item.get("imagen_path"))
+                        if img_item:
+                            st.image(img_item, width=44)
                         else:
-                            models.registrar_venta(
-                                items=st.session_state.carrito,
-                                forma_pago=forma_pago,
-                                cliente_id=cliente_id,
-                                comercio_id=usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
-                            )
-                            st.success("✅ ¡Venta registrada con éxito!")
-                            st.session_state.carrito = []
+                            st.markdown("<div style='font-size: 20px; text-align: center; margin-top: 4px;'>📦</div>", unsafe_allow_html=True)
+                    with c_info:
+                        st.markdown(f"**{item['nombre']}** (`{item['codigo']}`)")
+                        st.caption(f"{item['cantidad']:g} unid. x ${item['precio_unitario']:,.2f}")
+                    with c_sub:
+                        st.markdown(f"**${item['subtotal']:,.2f}**")
+                    with c_del:
+                        if st.button("❌", key=f"del_cart_{idx}"):
+                            st.session_state.carrito.pop(idx)
                             st.rerun()
-                    except models.BusinessLogicError as e:
-                        st.error(str(e))
-                    except Exception as err:
-                        st.error(f"Error inesperado al cobrar: {err}")
-                        
-            with c_vaciar:
-                if st.button("🗑️ Vaciar Carrito", use_container_width=True):
+
+            total_venta = round(sum(item["subtotal"] for item in st.session_state.carrito), 2)
+            st.markdown(
+                f"""
+                <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 9px; padding: 10px 16px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 1.05rem; font-weight: 700; color: #475569;">Total a Cobrar:</span>
+                    <span style="font-size: 1.6rem; font-weight: 800; color: #0F172A;">${total_venta:,.2f}</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # Formas de Pago con opción de Cuenta Corriente / Fiado
+            forma_pago = st.selectbox(
+                "Forma de Pago:",
+                [
+                    "Efectivo",
+                    "Mercado Pago / QR",
+                    "Transferencia",
+                    "Cuenta Corriente / Fiado",
+                    "Tarjeta de Débito",
+                    "Tarjeta de Crédito"
+                ]
+            )
+
+            # Tarjeta de Datos Bancarios y QR
+            if forma_pago in ["Mercado Pago / QR", "Transferencia"]:
+                with st.container(border=True):
+                    st.markdown("#### 📱 Datos para Cobro Electrónico")
+                    col_qr_vista, col_banco_vista = st.columns([1, 1.5], gap="small")
+                    with col_qr_vista:
+                        qr_abs = obtener_ruta_imagen_absoluta(config_negocio.get("qr_imagen_path"))
+                        if qr_abs:
+                            st.image(qr_abs, caption="Escanear Código QR", use_container_width=True)
+                        else:
+                            st.info("Sin QR cargado en Configuración.")
+                    with col_banco_vista:
+                        st.markdown(f"**Titular:** {config_negocio.get('titular_cuenta', '-')}")
+                        st.markdown(f"**Banco:** {config_negocio.get('banco', '-')}")
+                        st.markdown(f"**Alias:** `{config_negocio.get('alias', '-')}`")
+                        st.markdown(f"**CBU:** `{config_negocio.get('cbu', '-')}`")
+
+            # CUENTA CORRIENTE / FIADO: Validar cliente y límite de crédito
+            bloquear_venta_fiado = False
+
+            if forma_pago == "Cuenta Corriente / Fiado":
+                with st.container(border=True):
+                    st.markdown("#### 👥 Asignar Venta a Cuenta Corriente")
+                    if cliente_pos is None:
+                        st.error("⛔ Para fiar en Cuenta Corriente debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
+                        bloquear_venta_fiado = True
+                    else:
+                        saldo_previsto = cliente_pos["saldo_deudor"] + total_venta
+                        col_c1, col_c2 = st.columns(2)
+                        with col_c1:
+                            st.markdown(f"**Saldo Actual:** ${cliente_pos['saldo_deudor']:,.2f}")
+                            st.markdown(f"**Límite Máximo:** ${cliente_pos['limite_credito']:,.2f}" if cliente_pos['limite_credito'] > 0 else "**Límite:** Sin límite")
+                        with col_c2:
+                            st.markdown(f"**Saldo Tras la Venta:** **${saldo_previsto:,.2f}**")
+
+                        if cliente_pos["limite_credito"] > 0 and saldo_previsto > cliente_pos["limite_credito"]:
+                            st.error(f"⛔ **LÍMITE EXCEDIDO:** La venta superará el límite de crédito configurado (${cliente_pos['limite_credito']:,.2f}).")
+                            bloquear_venta_fiado = True
+                        else:
+                            st.success(f"✅ Venta autorizada a la cuenta de {cliente_pos['nombre']}.")
+
+            st.write("")
+            col_btn_vender, col_btn_vaciar = st.columns([2.5, 1], gap="small")
+            with col_btn_vaciar:
+                if st.button("🗑️ Vaciar", use_container_width=True):
                     st.session_state.carrito = []
                     st.rerun()
+            with col_btn_vender:
+                boton_deshabilitado = bloquear_venta_fiado
+                if st.button(f"✅ CONFIRMAR Y COBRAR (${total_venta:,.2f})", type="primary", disabled=boton_deshabilitado, use_container_width=True):
+
+                    try:
+                        items_venta = [
+                            {"producto_id": it["producto_id"], "cantidad": it["cantidad"]}
+                            for it in st.session_state.carrito
+                        ]
+                        items_ticket = [dict(it) for it in st.session_state.carrito]
+                        total_ticket = total_venta
+                        fecha_ticket = datetime.now(ZONA_HORARIA).strftime("%d/%m/%Y %H:%M")
+                        nombre_cli_tk = cliente_pos["nombre"] if cliente_pos else "Consumidor Final"
+
+                        venta_id, puntos_ganados = models.registrar_venta(
+                            items=items_venta,
+                            forma_pago=forma_pago,
+                            cliente_id=cliente_pos_id
+                        )
+
+                        puntos_balance = 0.0
+                        if cliente_pos_id:
+                            cli_upd = next((c for c in models.obtener_clientes() if c["id"] == cliente_pos_id), None)
+                            if cli_upd:
+                                puntos_balance = cli_upd.get("puntos", 0)
+
+                        # Generar comprobante en PDF formato térmico 80 mm
+                        datos_tk = {
+                            "venta_id": venta_id,
+                            "fecha_hora": fecha_ticket,
+                            "cliente_nombre": nombre_cli_tk,
+                            "forma_pago": forma_pago,
+                            "items": items_ticket,
+                            "total_venta": total_ticket,
+                            "puntos_ganados": puntos_ganados,
+                            "puntos_balance": puntos_balance,
+                            "direccion_negocio": config_negocio.get("direccion", ""),
+                            "telefono_negocio": config_negocio.get("telefono", "")
+                        }
+                        pdf_bytes = reportes.generar_pdf_ticket_termico(
+                            datos_tk,
+                            nombre_negocio=config_negocio.get("nombre_negocio", "Mi Comercio")
+                        )
+
+                        st.session_state["ultimo_ticket"] = {
+                            "venta_id": venta_id,
+                            "pdf_bytes": pdf_bytes,
+                            "total": total_ticket,
+                            "fecha": fecha_ticket,
+                            "forma_pago": forma_pago,
+                            "cliente_nombre": nombre_cli_tk,
+                            "cliente_telefono": cliente_pos.get("telefono") if cliente_pos else None,
+                            "negocio_nombre": config_negocio.get("nombre_negocio", "Mi Comercio")
+                        }
+
+                        st.session_state.carrito = []
+                        st.balloons()
+                        st.success(f"🎉 ¡Venta #{venta_id} confirmada por ${total_ticket:,.2f} ({forma_pago})!")
+                        st.rerun()
+                    except models.InsufficientStockError as err:
+                        st.error(f"Stock insuficiente: {err}")
+                    except Exception as err:
+                        st.error(f"Error al registrar la venta: {err}")
 
 
 # ==============================================================================
