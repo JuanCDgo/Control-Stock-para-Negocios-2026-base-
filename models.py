@@ -785,7 +785,7 @@ RESET_MOVIMIENTOS = "movimientos"   # ventas, detalle, cuenta corriente; saldos 
 RESET_FABRICA = "total"              # además: productos, categorías y clientes
 
 
-def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT, uploads_dir=None):
+def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT):
     """
     Puesta a cero de datos de prueba del comercio, en UNA transacción (RPC
     `resetear_datos_comercio`, ver sql/reset_datos.sql). Exige el PIN de un usuario admin.
@@ -821,17 +821,6 @@ def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT, uploa
         raise BusinessLogicError(_mensaje_fallo_login(res))
 
     fotos_eliminadas = 0
-    if modo == RESET_FABRICA and uploads_dir and os.path.isdir(uploads_dir):
-        # Solo fotos de productos (prefijo prod_): el QR de cobro es configuración y se conserva
-        for arch in os.listdir(uploads_dir):
-            ruta = os.path.join(uploads_dir, arch)
-            if arch.startswith("prod_") and os.path.isfile(ruta):
-                try:
-                    os.remove(ruta)
-                    fotos_eliminadas += 1
-                except OSError:
-                    pass
-
     res["fotos_eliminadas"] = fotos_eliminadas
     return res
 
@@ -955,3 +944,4 @@ def actualizar_precios_masivamente(productos_modificados, comercio_id=COMERCIO_I
         except Exception as e:
             print(f"Error actualizando producto {p['id']}: {e}")
     return exitosos
+

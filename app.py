@@ -9,6 +9,7 @@ Organizado en 6 módulos principales:
 6. ⚙️ Configuración del Negocio (Datos Bancarios, QR y SMTP)
 """
 import os
+import io
 import re
 import urllib.parse
 import importlib
@@ -34,10 +35,8 @@ from config_manager import (
     cambiar_clave_admin
 )
 
-# Configuración del directorio base y carpetas estáticas
+# Configuración del directorio base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOADS_DIR = os.path.join(BASE_DIR, "static", "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 # Configuración general de la página Streamlit
 st.set_page_config(
@@ -209,33 +208,28 @@ def _sumar_pos_cant(delta):
 def guardar_archivo_imagen(uploaded_file, prefijo: str = "img", max_dim: int = 400, calidad: int = 80) -> Optional[str]:
     """
     Procesa, redimensiona y comprime una imagen subida usando Pillow.
-    - Corrige orientación EXIF (típica de fotos tomadas con celulares).
-    - Redimensiona proporcionalmente para que el lado mayor no supere max_dim (400px por defecto).
-    - Convierte a formato RGB (manejando fondos transparentes a blanco) y exporta como JPEG calidad 80 optimizado.
-    - Garantiza archivos ultralivianos (menos de 50-80 KB) y óptimos para visualización ágil en POS móvil y de escritorio.
-    - Retorna la ruta relativa en static/uploads/, o None si no hay imagen o falla el procesamiento.
+    - Corrige orientación EXIF.
+    - Redimensiona proporcionalmente para que el lado mayor no supere max_dim.
+    - Convierte a formato RGB y exporta como JPEG optimizado en memoria.
+    - Sube la imagen directamente al bucket de Supabase 'productos'.
+    - Retorna la URL pública, o None si no hay imagen o falla el procesamiento.
     """
     if uploaded_file is None:
         return None
 
     try:
-        # Asegurar puntero al inicio si es un stream o buffer
         if hasattr(uploaded_file, "seek"):
             uploaded_file.seek(0)
 
-        # Abrir imagen con Pillow directamente desde el buffer de Streamlit
         img = Image.open(uploaded_file)
 
-        # Corregir rotación automática si tiene metadata EXIF
         try:
             img = ImageOps.exif_transpose(img)
         except Exception:
             pass
 
-        # Redimensionar proporcionalmente para que el lado mayor no supere max_dim
         img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
-        # Manejo de capas alfa o transparencia (convertir a RGB sobre fondo blanco)
         if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
             fondo_blanco = Image.new("RGB", img.size, (255, 255, 255))
             if img.mode != "RGBA":
@@ -248,14 +242,26 @@ def guardar_archivo_imagen(uploaded_file, prefijo: str = "img", max_dim: int = 4
         prefijo_limpio = "".join(c for c in prefijo if c.isalnum() or c in ("-", "_")).lower()
         timestamp = int(datetime.now().timestamp() * 1000)
         nombre_archivo = f"{prefijo_limpio}_{timestamp}.jpg"
-        ruta_absoluta = os.path.join(UPLOADS_DIR, nombre_archivo)
 
-        # Exportar como JPEG optimizado con calidad 80
-        img_final.save(ruta_absoluta, format="JPEG", quality=calidad, optimize=True)
+        buffer = io.BytesIO()
+        img_final.save(buffer, format="JPEG", quality=calidad, optimize=True)
+        buffer.seek(0)
 
-        return os.path.join("static", "uploads", nombre_archivo).replace("\\", "/")
+        from database import get_connection
+        supabase = get_connection()
+        bucket_name = 'productos'
+        
+        supabase.storage.from_(bucket_name).upload(
+            path=nombre_archivo,
+            file=buffer.getvalue(),
+            file_options={"content-type": "image/jpeg"}
+        )
+        
+        url_publica = supabase.storage.from_(bucket_name).get_public_url(nombre_archivo)
+        return url_publica
+
     except Exception as e:
-        st.error(f"⚠️ Error al procesar o comprimir la imagen: {e}")
+        st.error(f"⚠️ Error al procesar o subir la imagen: {e}")
         return None
 
 
@@ -263,7 +269,7 @@ def obtener_ruta_imagen_absoluta(ruta_relativa: Optional[str]) -> Optional[str]:
     """
     Resuelve la imagen para mostrarla con st.image.
     - URL http(s): se devuelve tal cual.
-    - Ruta relativa local: se valida que exista en disco y se devuelve la ruta absoluta.
+    - Ruta relativa local: se devuelve la ruta absoluta local si existe.
     """
     if not ruta_relativa:
         return None
@@ -273,17 +279,21 @@ def obtener_ruta_imagen_absoluta(ruta_relativa: Optional[str]) -> Optional[str]:
     return ruta_abs if os.path.exists(ruta_abs) else None
 
 
-def borrar_archivo_imagen_local(ruta_relativa: Optional[str]) -> None:
-    """Borra una foto subida por la app (solo dentro de static/uploads). Ignora URLs y rutas ajenas."""
-    if not ruta_relativa or str(ruta_relativa).lower().startswith(("http://", "https://")):
-        return
-    ruta_abs = os.path.abspath(os.path.join(BASE_DIR, ruta_relativa))
-    if os.path.commonpath([ruta_abs, os.path.abspath(UPLOADS_DIR)]) != os.path.abspath(UPLOADS_DIR):
+def borrar_archivo_imagen_local(ruta: Optional[str]) -> None:
+    """Borra una foto subida al bucket de Supabase."""
+    if not ruta or not str(ruta).lower().startswith(("http://", "https://")):
         return
     try:
-        if os.path.isfile(ruta_abs):
-            os.remove(ruta_abs)
-    except OSError:
+        import urllib.parse
+        from database import get_connection
+        
+        parsed = urllib.parse.urlparse(ruta)
+        nombre_archivo = parsed.path.split('/')[-1]
+        
+        if nombre_archivo:
+            supabase = get_connection()
+            supabase.storage.from_('productos').remove([nombre_archivo])
+    except Exception:
         pass
 
 
@@ -2185,8 +2195,7 @@ elif modulo == "⚙️ Configuración del Negocio":
                         modo=modo_reset,
                         usuario_id=usuario_actual["id"],
                         pin=rst_pin,
-                        comercio_id=usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT),
-                        uploads_dir=UPLOADS_DIR,
+                        comercio_id=usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
                     )
                 partes = [
                     f"{resultado.get('ventas', 0)} ventas",
