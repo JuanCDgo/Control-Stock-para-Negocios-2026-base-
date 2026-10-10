@@ -56,12 +56,28 @@ def crear_categoria(nombre, comercio_id=COMERCIO_ID_DEFAULT):
     return res.data[0]["id"]
 
 @clears_cache
+def actualizar_categoria(categoria_id, nuevo_nombre, comercio_id=COMERCIO_ID_DEFAULT):
+    """Actualiza el nombre de una categoría verificando que no esté duplicado."""
+    nombre_limpio = (nuevo_nombre or "").strip()
+    if not nombre_limpio:
+        raise BusinessLogicError("El nombre de la categoría es obligatorio.")
+    supabase = get_connection()
+    dup = supabase.table("categorias").select("id").eq("comercio_id", comercio_id).ilike("nombre", nombre_limpio).execute()
+    for fila in (dup.data or []):
+        if fila["id"] != categoria_id:
+            raise BusinessLogicError(f"Ya existe otra categoría llamada '{nombre_limpio}'.")
+    res = supabase.table("categorias").update({"nombre": nombre_limpio}).eq("id", categoria_id).eq("comercio_id", comercio_id).execute()
+    if not res.data:
+        raise BusinessLogicError("No se encontró la categoría o no pudo ser actualizada.")
+    return True
+
+@clears_cache
 def eliminar_categoria(categoria_id, comercio_id=COMERCIO_ID_DEFAULT):
     """Elimina una categoría si no tiene productos asociados."""
     supabase = get_connection()
-    prods = supabase.table("productos").select("id").eq("categoria_id", categoria_id).limit(1).execute()
-    if prods.data:
-        raise BusinessLogicError("No se puede eliminar la categoría porque tiene productos asignados.")
+    prods_count = supabase.table("productos").select("id", count="exact").eq("categoria_id", categoria_id).execute()
+    if prods_count.count and prods_count.count > 0:
+        raise BusinessLogicError(f"No se puede eliminar la categoría porque tiene {prods_count.count} producto(s) asignado(s).")
     res = supabase.table("categorias").delete().eq("id", categoria_id).eq("comercio_id", comercio_id).execute()
     if not res.data:
         raise BusinessLogicError("No se encontró la categoría o no pudo ser eliminada.")

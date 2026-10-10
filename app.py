@@ -1764,12 +1764,36 @@ elif modulo == "🏷️ Categorías":
             st.info("Aún no existen categorías registradas.")
         else:
             for cat in lista_categorias:
-                c1, c2 = st.columns([3, 1])
-                c1.write(f"📁 **{cat['nombre']}**")
-                if c2.button("Eliminar", key=f"del_cat_{cat['id']}"):
-                    models.eliminar_categoria(cat['id'])
-                    st.warning(f"Categoría '{cat['nombre']}' eliminada.")
-                    st.rerun()
+                with st.expander(f"📁 {cat['nombre']}"):
+                    with st.form(f"form_edit_cat_{cat['id']}"):
+                        nuevo_nombre = st.text_input("Renombrar categoría", value=cat['nombre'])
+                        c_btn_edit, c_btn_del = st.columns(2)
+                        
+                        btn_editar = c_btn_edit.form_submit_button("💾 Guardar Cambios", type="primary")
+                        btn_eliminar = c_btn_del.form_submit_button("🗑️ Eliminar", type="secondary")
+                        
+                        if btn_editar:
+                            if nuevo_nombre.strip() != cat['nombre']:
+                                try:
+                                    models.actualizar_categoria(cat['id'], nuevo_nombre)
+                                    st.success(f"Categoría renombrada a '{nuevo_nombre}'.")
+                                    st.rerun()
+                                except models.BusinessLogicError as e:
+                                    st.error(str(e))
+                                except Exception as e:
+                                    st.error(f"Error al actualizar: {e}")
+                            else:
+                                st.info("No se realizaron cambios en el nombre.")
+                                
+                        if btn_eliminar:
+                            try:
+                                models.eliminar_categoria(cat['id'])
+                                st.success(f"Categoría '{cat['nombre']}' eliminada con éxito.")
+                                st.rerun()
+                            except models.BusinessLogicError as e:
+                                st.warning(str(e))
+                            except Exception as e:
+                                st.error(f"Error al eliminar: {e}")
 
 
 # ==============================================================================
