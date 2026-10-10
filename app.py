@@ -296,7 +296,7 @@ def borrar_archivo_imagen_local(ruta: Optional[str]) -> None:
 # ==============================================================================
 MODULOS_CAJERO = [
     "🛒 Punto de Venta (POS)",
-    "📊 Arqueo de Caja / Control Diario",
+    "⚖️ Arqueo de Caja / Control Diario",
     "💵 Cuentas Corrientes / Clientes",
 ]
 MODULOS_ADMIN = MODULOS_CAJERO + [
@@ -426,7 +426,7 @@ if st.session_state["modulo_activo"] not in modulos_permitidos:
     st.session_state["modulo_activo"] = modulos_permitidos[0]
 
 st.sidebar.markdown("### 🛠️ OPERACIÓN")
-for mod in ["🛒 Punto de Venta (POS)", "📊 Arqueo de Caja / Control Diario", "💵 Cuentas Corrientes / Clientes"]:
+for mod in ["🛒 Punto de Venta (POS)", "⚖️ Arqueo de Caja / Control Diario", "💵 Cuentas Corrientes / Clientes"]:
     if mod in modulos_permitidos:
         if st.sidebar.button(mod, use_container_width=True, type="primary" if st.session_state["modulo_activo"] == mod else "secondary", key=f"nav_{mod}"):
             st.session_state["modulo_activo"] = mod
@@ -598,16 +598,10 @@ if modulo == "🛒 Punto de Venta (POS)":
             total = 0.0
             for i, item in enumerate(st.session_state.carrito):
                 with st.container(border=True):
-                    c_name, c_price, c_minus, c_qty, c_plus, c_del = st.columns([3, 2, 0.8, 0.8, 0.8, 0.8], gap="small")
-                    with c_name:
+                    c_info, c_minus, c_qty, c_plus, c_del = st.columns([4, 1, 1, 1, 1], gap="small")
+                    with c_info:
                         st.markdown(f"**{item['nombre']}**")
-                        st.caption(f"Subtotal: **${item['subtotal']:.2f}**")
-                    with c_price:
-                        nuevo_precio = st.number_input("Precio u.", value=float(item['precio']), key=f"precio_{i}", step=50.0, format="%.2f", label_visibility="collapsed")
-                        if nuevo_precio != item['precio']:
-                            st.session_state.carrito[i]['precio'] = float(nuevo_precio)
-                            st.session_state.carrito[i]['subtotal'] = round(st.session_state.carrito[i]['cantidad'] * float(nuevo_precio), 2)
-                            st.rerun()
+                        st.caption(f"${item['precio']:.2f} x {item['cantidad']:g} = **${item['subtotal']:.2f}**")
                     with c_minus:
                         if st.button("➖", key=f"minus_{i}", use_container_width=True):
                             if item["cantidad"] > 1:
