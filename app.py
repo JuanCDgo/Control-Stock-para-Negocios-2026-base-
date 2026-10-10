@@ -306,19 +306,7 @@ MODULOS_ADMIN = MODULOS_CAJERO + [
 ]
 
 
-def _login_digito(digito):
-    """Callback del teclado numérico: agrega un dígito al PIN (máx. 4)."""
-    actual = st.session_state.get("login_pin", "")
-    if len(actual) < 4:
-        st.session_state["login_pin"] = actual + digito
 
-
-def _login_borrar():
-    st.session_state["login_pin"] = st.session_state.get("login_pin", "")[:-1]
-
-
-def _login_limpiar():
-    st.session_state["login_pin"] = ""
 
 
 def _cerrar_sesion():
@@ -344,13 +332,12 @@ def _intentar_login(usuario_id, pin):
 
 
 def _pantalla_login():
-    """Pantalla de ingreso: selector de usuario + PIN de 4 dígitos (teclado táctil)."""
-    # Pantalla limpia: sin barra lateral y con teclas grandes para uso táctil
+    """Pantalla de ingreso: selector de usuario + PIN."""
+    # Pantalla limpia: sin barra lateral
     st.markdown(
         """
         <style>
         [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] { display: none !important; }
-        div[data-testid="stButton"] button { min-height: 64px !important; font-size: 1.4rem !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -368,55 +355,33 @@ def _pantalla_login():
     _, centro, _ = st.columns([1, 1.4, 1])
     with centro:
         st.markdown(
-            f"<h1 style='text-align:center; margin-bottom:0;'>🏪 {config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>"
+            f"<h1 style='text-align:center; margin-bottom:0;'>🏬 {config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>"
             "<p style='text-align:center; color:#64748B;'>Elegí tu usuario e ingresá tu PIN</p>",
             unsafe_allow_html=True,
         )
 
-        iconos = {models.ROL_ADMIN: "👑", models.ROL_CAJERO: "🧾"}
+        iconos = {models.ROL_ADMIN: "👑", models.ROL_CAJERO: "👤"}
         por_id = {u["id"]: u for u in usuarios}
         usuario_id = st.radio(
             "Usuario",
             options=list(por_id.keys()),
             format_func=lambda i: f"{iconos.get(por_id[i]['rol'], '👤')} {por_id[i]['nombre']}",
             horizontal=True,
-            key="login_usuario_id",
-            on_change=_login_limpiar,
-        )
-
-        pin = st.session_state.get("login_pin", "")
-        st.markdown(
-            f"<div style='text-align:center; font-size:2.4rem; letter-spacing:14px; margin:6px 0 2px;'>"
-            f"{'●' * len(pin)}{'○' * (4 - len(pin))}</div>",
-            unsafe_allow_html=True,
+            key="login_usuario_id"
         )
 
         error = st.session_state.pop("login_error", None)
         if error:
             st.error(error)
 
-        # Teclado numérico táctil
-        teclas = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["C", "0", "⌫"]]
-        for fila in teclas:
-            cols = st.columns(3)
-            for col, tecla in zip(cols, fila):
-                if tecla == "C":
-                    col.button("C", key="kp_clear", use_container_width=True, on_click=_login_limpiar)
-                elif tecla == "⌫":
-                    col.button("⌫", key="kp_back", use_container_width=True, on_click=_login_borrar)
+        with st.form("form_login", clear_on_submit=True):
+            pin_txt = st.text_input("Ingrese su PIN", type="password", max_chars=4)
+            if st.form_submit_button("Ingresar", type="primary", use_container_width=True):
+                if not pin_txt:
+                    st.session_state["login_error"] = "⚠️ El PIN no puede estar vacío."
+                    st.rerun()
                 else:
-                    col.button(tecla, key=f"kp_{tecla}", use_container_width=True,
-                               on_click=_login_digito, args=(tecla,))
-
-        # Alternativa con teclado físico (Enter para ingresar)
-        with st.expander("⌨️ Escribir el PIN con el teclado"):
-            with st.form("form_login_teclado", clear_on_submit=True):
-                pin_txt = st.text_input("PIN (4 dígitos)", type="password", max_chars=4)
-                if st.form_submit_button("Ingresar", type="primary", use_container_width=True):
                     _intentar_login(usuario_id, pin_txt)
-
-        if len(pin) == 4:
-            _intentar_login(usuario_id, pin)
 
 
 if not st.session_state.get("usuario"):
