@@ -1,3 +1,14 @@
+import streamlit as st
+import functools
+
+def clears_cache(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        res = func(*args, **kwargs)
+        st.cache_data.clear()
+        return res
+    return wrapper
+
 import os
 import pandas as pd
 from database import get_connection
@@ -17,16 +28,19 @@ class InsufficientStockError(BusinessLogicError):
 # 1. GESTIÓN DE PRODUCTOS Y CATEGORÍAS
 # ==========================================
 
+@st.cache_data(ttl=120)
 def get_categorias(comercio_id=COMERCIO_ID_DEFAULT):
     """Devuelve la lista de categorías del comercio."""
     supabase = get_connection()
     res = supabase.table("categorias").select("*").eq("comercio_id", comercio_id).order("nombre").execute()
     return res.data or []
 
+@clears_cache
 def add_categoria(nombre, comercio_id=COMERCIO_ID_DEFAULT):
     """Agrega una nueva categoría (alias interno)."""
     return crear_categoria(nombre, comercio_id)
 
+@clears_cache
 def crear_categoria(nombre, comercio_id=COMERCIO_ID_DEFAULT):
     """Crea una categoría verificando nombre no vacío ni duplicado."""
     nombre_limpio = (nombre or "").strip()
@@ -41,6 +55,7 @@ def crear_categoria(nombre, comercio_id=COMERCIO_ID_DEFAULT):
         raise Exception("Error al crear la categoría en Supabase.")
     return res.data[0]["id"]
 
+@clears_cache
 def eliminar_categoria(categoria_id, comercio_id=COMERCIO_ID_DEFAULT):
     """Elimina una categoría si no tiene productos asociados."""
     supabase = get_connection()
@@ -82,6 +97,7 @@ def _formatear_producto(p):
         "imagen_path": imagen or None,
     }
 
+@st.cache_data(ttl=120)
 def get_productos(comercio_id=COMERCIO_ID_DEFAULT):
     """Devuelve todos los productos con su categoría asociada como DataFrame."""
     supabase = get_connection()
@@ -93,6 +109,7 @@ def get_productos(comercio_id=COMERCIO_ID_DEFAULT):
     
     return pd.DataFrame([_formatear_producto(p) for p in res.data])
 
+@st.cache_data(ttl=120)
 def obtener_producto_por_codigo(codigo, comercio_id=COMERCIO_ID_DEFAULT):
     """Busca un producto por código de barras / SKU exacto. Devuelve un dict o None si no existe."""
     codigo = (codigo or "").strip()
@@ -112,6 +129,7 @@ def obtener_producto_por_codigo(codigo, comercio_id=COMERCIO_ID_DEFAULT):
         return None
     return _formatear_producto(res.data[0])
 
+@clears_cache
 def save_producto(datos, comercio_id=COMERCIO_ID_DEFAULT):
     """Guarda o actualiza un producto en Supabase."""
     supabase = get_connection()
@@ -136,6 +154,7 @@ def save_producto(datos, comercio_id=COMERCIO_ID_DEFAULT):
         res = supabase.table("productos").insert(payload).execute()
     return res.data
 
+@clears_cache
 def delete_producto(producto_id):
     """Elimina un producto por su ID."""
     supabase = get_connection()
@@ -150,6 +169,7 @@ def calcular_precio_venta(precio_costo, margen_ganancia):
     return round(float(precio_costo or 0.0) * (1 + float(margen_ganancia or 0.0) / 100.0), 2)
 
 
+@st.cache_data(ttl=120)
 def obtener_productos(busqueda=None, categoria_id=None, comercio_id=COMERCIO_ID_DEFAULT, **kwargs):
     """
     Lista de productos (dicts), ordenada por nombre. Filtros opcionales:
@@ -203,6 +223,7 @@ def _verificar_codigo_libre(supabase, codigo, comercio_id, excluir_id=None):
             raise BusinessLogicError(f"Ya existe un producto con el código '{codigo}' ({fila['nombre']}).")
 
 
+@clears_cache
 def crear_producto(codigo, nombre, categoria_id, precio_costo, margen_ganancia, usa_precio_manual,
                    precio_venta_manual, stock_actual, stock_minimo, imagen_path=None,
                    comercio_id=COMERCIO_ID_DEFAULT):
@@ -232,6 +253,7 @@ def crear_producto(codigo, nombre, categoria_id, precio_costo, margen_ganancia, 
     return res.data[0]["id"]
 
 
+@clears_cache
 def actualizar_producto(producto_id, codigo, nombre, categoria_id, precio_costo, margen_ganancia,
                         usa_precio_manual, precio_venta_manual, stock_actual, stock_minimo,
                         imagen_path=None, eliminar_imagen=False, comercio_id=COMERCIO_ID_DEFAULT):
@@ -268,6 +290,7 @@ def actualizar_producto(producto_id, codigo, nombre, categoria_id, precio_costo,
     return True
 
 
+@clears_cache
 def eliminar_producto(producto_id, comercio_id=COMERCIO_ID_DEFAULT):
     """Elimina un producto. Se bloquea si tiene ventas históricas, para no romper tickets viejos."""
     supabase = get_connection()
@@ -286,6 +309,7 @@ def eliminar_producto(producto_id, comercio_id=COMERCIO_ID_DEFAULT):
     return True
 
 
+@clears_cache
 def ajustar_stock(producto_id, nuevo_stock, comercio_id=COMERCIO_ID_DEFAULT):
     """Fija el stock actual de un producto (conteo físico o ingreso de mercadería ya sumado)."""
     if float(nuevo_stock) < 0:
@@ -298,6 +322,7 @@ def ajustar_stock(producto_id, nuevo_stock, comercio_id=COMERCIO_ID_DEFAULT):
     return True
 
 
+@clears_cache
 def actualizar_stock_minimo(producto_id, nuevo_minimo, comercio_id=COMERCIO_ID_DEFAULT):
     """Actualiza el umbral de stock mínimo (alerta de reposición) de un producto."""
     if float(nuevo_minimo) < 0:
@@ -326,10 +351,12 @@ def _formatear_cliente(c):
         "created_at": c.get("created_at") or ""
     }
 
+@st.cache_data(ttl=120)
 def get_clientes(comercio_id=COMERCIO_ID_DEFAULT):
     """Obtiene la lista de clientes."""
     return obtener_clientes(comercio_id=comercio_id)
 
+@st.cache_data(ttl=120)
 def obtener_clientes(busqueda=None, comercio_id=COMERCIO_ID_DEFAULT):
     """Obtiene clientes ordenados por nombre con filtro opcional de búsqueda."""
     supabase = get_connection()
@@ -343,6 +370,7 @@ def obtener_clientes(busqueda=None, comercio_id=COMERCIO_ID_DEFAULT):
         ]
     return clientes
 
+@clears_cache
 def crear_cliente(nombre, telefono="", email="", limite_credito=0.0, comercio_id=COMERCIO_ID_DEFAULT):
     """Registra un nuevo cliente validando datos."""
     nombre = (nombre or "").strip()
@@ -366,10 +394,12 @@ def crear_cliente(nombre, telefono="", email="", limite_credito=0.0, comercio_id
         raise Exception("Error al registrar el cliente en Supabase.")
     return res.data[0]["id"]
 
+@clears_cache
 def add_cliente(nombre, telefono="", email="", limite_credito=0.0, comercio_id=COMERCIO_ID_DEFAULT):
     """Alias para crear_cliente."""
     return crear_cliente(nombre, telefono, email, limite_credito, comercio_id)
 
+@clears_cache
 def actualizar_cliente(cliente_id, nombre, telefono="", email="", limite_credito=0.0, comercio_id=COMERCIO_ID_DEFAULT):
     """Actualiza la información de contacto y límite de crédito de un cliente."""
     nombre = (nombre or "").strip()
@@ -391,6 +421,7 @@ def actualizar_cliente(cliente_id, nombre, telefono="", email="", limite_credito
         raise BusinessLogicError("No se pudo actualizar: el cliente no existe o hubo un fallo de escritura.")
     return True
 
+@clears_cache
 def eliminar_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
     """Elimina un cliente verificando que no posea deuda pendiente."""
     supabase = get_connection()
@@ -413,6 +444,7 @@ def eliminar_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
         raise
     return True
 
+@clears_cache
 def registrar_abono_cliente(cliente_id, monto, metodo_pago="Efectivo", descripcion=None, comercio_id=COMERCIO_ID_DEFAULT):
     """Registra una entrega de dinero / abono de un cliente para amortizar su saldo deudor."""
     monto_val = float(monto or 0.0)
@@ -445,10 +477,12 @@ def registrar_abono_cliente(cliente_id, monto, metodo_pago="Efectivo", descripci
         raise Exception("Error al asentar el movimiento en la cuenta corriente.")
     return mov_res.data[0]["id"]
 
+@clears_cache
 def registrar_pago_cliente(cliente_id, monto, descripcion="Pago a cuenta", comercio_id=COMERCIO_ID_DEFAULT):
     """Alias compatible con versiones previas."""
     return registrar_abono_cliente(cliente_id, monto, metodo_pago="Efectivo", descripcion=descripcion, comercio_id=comercio_id)
 
+@st.cache_data(ttl=120)
 def obtener_movimientos_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
     """Obtiene el historial cronológico de movimientos (cargos y pagos) de un cliente."""
     supabase = get_connection()
@@ -486,6 +520,7 @@ def _error_rpc(e):
     return codigo, (mensaje or str(e))
 
 
+@clears_cache
 def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_DEFAULT):
     """
     Registra la venta, descuenta stock y, si es fiado, carga la deuda al cliente.
@@ -577,6 +612,7 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
         raise Exception("Error al registrar la venta en la base de datos.")
     return venta_id, puntos_ganados
 
+@st.cache_data(ttl=120)
 def obtener_productos_bajo_stock(comercio_id=COMERCIO_ID_DEFAULT):
     """
     Productos en o por debajo de su stock mínimo, como lista de dicts ordenada por faltante
@@ -590,6 +626,7 @@ def obtener_productos_bajo_stock(comercio_id=COMERCIO_ID_DEFAULT):
     return bajo_stock
 
 
+@st.cache_data(ttl=120)
 def obtener_resumen_deuda_total(comercio_id=COMERCIO_ID_DEFAULT):
     """Suma el saldo deudor de todos los clientes para mostrar en el panel."""
     supabase = get_connection()
@@ -612,6 +649,7 @@ def obtener_resumen_deuda_total(comercio_id=COMERCIO_ID_DEFAULT):
 # 4. ARQUEO DE CAJA Y CONTROL DIARIO
 # ==========================================
 
+@st.cache_data(ttl=120)
 def obtener_detalle_de_venta(venta_id):
     """Devuelve los ítems individuales de un ticket de venta con datos del producto."""
     supabase = get_connection()
@@ -640,6 +678,7 @@ def obtener_detalle_de_venta(venta_id):
     return detalles
 
 
+@clears_cache
 def registrar_movimiento_caja(comercio_id, tipo, monto, concepto, usuario_nombre):
     """Registra un ingreso extra o egreso de efectivo en la caja chica."""
     monto_val = float(monto or 0.0)
@@ -664,6 +703,7 @@ def registrar_movimiento_caja(comercio_id, tipo, monto, concepto, usuario_nombre
     return res.data[0]["id"]
 
 
+@st.cache_data(ttl=120)
 def obtener_movimientos_caja(comercio_id, fecha_inicio, fecha_fin=None):
     """Obtiene los movimientos de caja chica en un rango de fechas."""
     supabase = get_connection()
@@ -683,6 +723,7 @@ def obtener_movimientos_caja(comercio_id, fecha_inicio, fecha_fin=None):
     return res.data or []
 
 
+@st.cache_data(ttl=120)
 def obtener_arqueo_caja(fecha_str=None, comercio_id=COMERCIO_ID_DEFAULT, **kwargs):
     """
     Retorna el informe consolidado de ventas del día:
@@ -785,6 +826,7 @@ RESET_MOVIMIENTOS = "movimientos"   # ventas, detalle, cuenta corriente; saldos 
 RESET_FABRICA = "total"              # además: productos, categorías y clientes
 
 
+@clears_cache
 def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT):
     """
     Puesta a cero de datos de prueba del comercio, en UNA transacción (RPC
@@ -826,6 +868,7 @@ def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT):
 
 
 # --- ALIAS COMPATIBILIDAD ---
+@st.cache_data(ttl=120)
 def obtener_categorias(comercio_id=COMERCIO_ID_DEFAULT):
     return get_categorias(comercio_id)
 
@@ -869,6 +912,7 @@ def _mensaje_fallo_login(res):
     return "Usuario no disponible. Elegí otro usuario."
 
 
+@st.cache_data(ttl=120)
 def listar_usuarios_login(comercio_id=COMERCIO_ID_DEFAULT):
     """Usuarios activos para la pantalla de login: [{id, nombre, rol}] (sin hash)."""
     data = _rpc_auth("listar_usuarios_login", {"p_comercio_id": comercio_id}) or []
@@ -899,6 +943,7 @@ def verificar_login(usuario_id, pin):
     return None, _mensaje_fallo_login(res)
 
 
+@clears_cache
 def cambiar_pin(usuario_id, pin_actual, pin_nuevo):
     """Cambia el PIN (4 dígitos). Lanza BusinessLogicError si no se puede."""
     pin_nuevo = str(pin_nuevo or "").strip()
@@ -921,6 +966,7 @@ def cambiar_pin(usuario_id, pin_actual, pin_nuevo):
 
 
 
+@clears_cache
 def actualizar_precios_masivamente(productos_modificados, comercio_id=COMERCIO_ID_DEFAULT):
     """
     Actualiza masivamente precio_costo, precio_venta, margen_ganancia y usa_precio_manual
