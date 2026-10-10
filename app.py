@@ -265,15 +265,10 @@ def guardar_archivo_imagen(uploaded_file, prefijo: str = "img", max_dim: int = 4
         return None
 
 
-def obtener_ruta_imagen_absoluta(ruta_relativa: Optional[str]) -> Optional[str]:
-    """
-    Resuelve la imagen para mostrarla con st.image.
-    - URL http(s): se devuelve tal cual.
-    - Ruta relativa local: se devuelve la ruta absoluta local si existe.
-    """
-    if not ruta_relativa:
+def obtener_ruta_imagen_absoluta(ruta_relativa):
+    if not ruta_relativa or not isinstance(ruta_relativa, str) or ruta_relativa.strip().lower() in ("", "none", "nan", "null"):
         return None
-    if str(ruta_relativa).lower().startswith(("http://", "https://")):
+    if ruta_relativa.lower().startswith(("http://", "https://")):
         return ruta_relativa
     ruta_abs = os.path.join(BASE_DIR, ruta_relativa)
     return ruta_abs if os.path.exists(ruta_abs) else None
