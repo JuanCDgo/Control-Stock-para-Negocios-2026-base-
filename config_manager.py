@@ -16,6 +16,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "alias": "comercio.pagos",
     "banco": "Banco / Billetera Virtual",
     "qr_imagen_path": None,
+    "logo_imagen_path": None,
     "smtp_servidor": "smtp.gmail.com",
     "smtp_puerto": 587,
     "smtp_usuario": "",

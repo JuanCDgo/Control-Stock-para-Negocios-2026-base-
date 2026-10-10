@@ -397,7 +397,12 @@ modulos_permitidos = MODULOS_ADMIN if es_admin else MODULOS_CAJERO
 # ==============================================================================
 # BARRA LATERAL (NAVEGACIÓN Y ALERTAS GLOBALES)
 # ==============================================================================
-st.sidebar.title(f"🏪 {config_negocio.get('nombre_negocio', 'Mi Comercio')}")
+logo_sidebar = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
+if logo_sidebar:
+    st.sidebar.image(logo_sidebar, use_container_width=True)
+    st.sidebar.title(config_negocio.get('nombre_negocio', 'Mi Comercio'))
+else:
+    st.sidebar.title(f"🏪 {config_negocio.get('nombre_negocio', 'Mi Comercio')}")
 st.sidebar.caption("Gestión Integral, POS, Clientes, Inventario & Caja")
 
 st.sidebar.markdown(
@@ -1315,7 +1320,7 @@ elif modulo == "📦 Productos e Inventario":
                             st.session_state["flash_inventario"] = f"✅ ¡Aumento masivo aplicado con éxito! Se actualizaron {exitosos} productos."
                             st.rerun()
 
-        col_filtro1, col_filtro2 = st.columns([2, 1])
+        col_filtro1, col_filtro2, col_filtro3 = st.columns([2, 1, 1])
         with col_filtro1:
             busqueda = st.text_input("🔍 Buscar por nombre o código / barra:", "")
         with col_filtro2:
@@ -1324,44 +1329,80 @@ elif modulo == "📦 Productos e Inventario":
                 opciones_cat[c["nombre"]] = c["id"]
             cat_seleccionada = st.selectbox("Filtrar por Categoría:", list(opciones_cat.keys()))
             cat_id_filtro = opciones_cat[cat_seleccionada]
+        with col_filtro3:
+            opciones_vista = ["Compacta", "Tarjetas", "Tabla"]
+            valor_actual = st.session_state.get("inv_vista_ficha", "Compacta")
+            vista_idx = opciones_vista.index(valor_actual) if valor_actual in opciones_vista else 0
+            vista_elegida = st.selectbox("Vista del Catálogo:", opciones_vista, index=vista_idx, key="inv_vista_ficha_sel")
+            st.session_state.inv_vista_ficha = vista_elegida
 
         productos = models.obtener_productos(busqueda=busqueda or None, categoria_id=cat_id_filtro)
 
         if productos:
-            for p in productos:
-                with st.container(border=True):
-                    col_p_img, col_p_det, col_p_precios, col_p_stock = st.columns([1, 2.5, 2, 2])
-
-                    with col_p_img:
+            if vista_elegida == "Tabla":
+                df_prods = pd.DataFrame(productos)[["codigo", "nombre", "categoria_nombre", "precio_costo", "margen_ganancia", "precio_venta", "stock_actual", "stock_minimo"]]
+                df_prods.rename(columns={
+                    "codigo": "Código", "nombre": "Producto", "categoria_nombre": "Categoría",
+                    "precio_costo": "Costo ($)", "margen_ganancia": "Margen (%)", 
+                    "precio_venta": "Venta ($)", "stock_actual": "Stock", "stock_minimo": "Mínimo"
+                }, inplace=True)
+                st.dataframe(df_prods, use_container_width=True, hide_index=True)
+            elif vista_elegida == "Tarjetas":
+                # Mostrar en cuadrícula de 3 o 4 columnas
+                columnas = st.columns(3)
+                for i, p in enumerate(productos):
+                    with columnas[i % 3].container(border=True):
                         img_prod = obtener_ruta_imagen_absoluta(p.get("imagen_path"))
                         if img_prod:
                             st.image(img_prod, use_container_width=True)
                         else:
                             st.markdown(
-                                """<div style="border:1px dashed #ccc; border-radius:6px; padding:20px 0; text-align:center; color:#999;">
+                                """<div style="border:1px dashed #ccc; border-radius:6px; padding:20px 0; text-align:center; color:#999; margin-bottom:10px;">
                                 📷<br><small>Sin foto</small></div>""",
                                 unsafe_allow_html=True
                             )
-
-                    with col_p_det:
-                        st.markdown(f"### {p['nombre']}")
-                        st.markdown(f"**Código / Barra:** `{p['codigo']}`")
-                        st.caption(f"Categoría: **{p['categoria_nombre']}**")
-
-                    with col_p_precios:
-                        st.markdown(f"**Costo:** ${p['precio_costo']:,.2f}")
-                        st.markdown(f"**Margen:** {p['margen_ganancia']:.1f}%")
-                        tipo_precio = "Manual" if p["usa_precio_manual"] == 1 else "Auto"
-                        st.markdown(f"**Venta:** :green[**${p['precio_venta']:,.2f}**] *({tipo_precio})*")
-
-                    with col_p_stock:
-                        st.markdown(f"**Stock Mínimo:** {p['stock_minimo']} unid.")
+                        st.markdown(f"**{p['nombre']}**")
+                        st.caption(f"Cod: {p['codigo']} | {p['categoria_nombre']}")
+                        st.markdown(f"💰 Venta: **${p['precio_venta']:,.2f}**")
                         if p["stock_actual"] <= p["stock_minimo"]:
-                            st.error(f"🚨 **Stock:** **{p['stock_actual']}** unidades")
-                            st.caption("⚠️ Requiere reposición")
+                            st.error(f"🚨 Stock: **{p['stock_actual']}** (Mín: {p['stock_minimo']})")
                         else:
-                            st.success(f"📦 **Stock:** **{p['stock_actual']}** unidades")
-                            st.caption("Nivel adecuado")
+                            st.success(f"📦 Stock: **{p['stock_actual']}** (Mín: {p['stock_minimo']})")
+            else: # Compacta
+                for p in productos:
+                    with st.container(border=True):
+                        col_p_img, col_p_det, col_p_precios, col_p_stock = st.columns([1, 2.5, 2, 2])
+    
+                        with col_p_img:
+                            img_prod = obtener_ruta_imagen_absoluta(p.get("imagen_path"))
+                            if img_prod:
+                                st.image(img_prod, use_container_width=True)
+                            else:
+                                st.markdown(
+                                    """<div style="border:1px dashed #ccc; border-radius:6px; padding:20px 0; text-align:center; color:#999;">
+                                    📷<br><small>Sin foto</small></div>""",
+                                    unsafe_allow_html=True
+                                )
+    
+                        with col_p_det:
+                            st.markdown(f"### {p['nombre']}")
+                            st.markdown(f"**Código / Barra:** `{p['codigo']}`")
+                            st.caption(f"Categoría: **{p['categoria_nombre']}**")
+    
+                        with col_p_precios:
+                            st.markdown(f"**Costo:** ${p['precio_costo']:,.2f}")
+                            st.markdown(f"**Margen:** {p['margen_ganancia']:.1f}%")
+                            tipo_precio = "Manual" if p["usa_precio_manual"] == 1 else "Auto"
+                            st.markdown(f"**Venta:** :green[**${p['precio_venta']:,.2f}**] *({tipo_precio})*")
+    
+                        with col_p_stock:
+                            st.markdown(f"**Stock Mínimo:** {p['stock_minimo']} unid.")
+                            if p["stock_actual"] <= p["stock_minimo"]:
+                                st.error(f"🚨 **Stock:** **{p['stock_actual']}** unidades")
+                                st.caption("⚠️ Requiere reposición")
+                            else:
+                                st.success(f"📦 **Stock:** **{p['stock_actual']}** unidades")
+                                st.caption("Nivel adecuado")
         else:
             st.info("No se encontraron productos coincidentes.")
 
@@ -2011,8 +2052,26 @@ elif modulo == "⚙️ Configuración del Negocio":
         col_c1, col_c2 = st.columns(2, gap="large")
 
         with col_c1:
-            st.markdown("### 🏦 Datos Bancarios y QR de Cobro")
+            st.markdown("### 🏪 Identidad del Negocio")
             nombre_neg_input = st.text_input("Nombre de Fantasía del Negocio", value=config_negocio.get("nombre_negocio", "Mi Comercio"))
+
+            st.markdown("#### 🖼️ Logo del Local")
+            logo_actual_abs = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
+            eliminar_logo_check = False
+            if logo_actual_abs:
+                c_l1, c_l2 = st.columns([1, 1])
+                with c_l1:
+                    st.image(logo_actual_abs, caption="Logo actual", width=120)
+                with c_l2:
+                    eliminar_logo_check = st.checkbox("🗑️ Eliminar Logo", key="del_logo_cfg")
+            
+            logo_subido = st.file_uploader(
+                "Subir o Reemplazar Logo (JPG / PNG / WEBP)",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="uploader_logo_cfg"
+            )
+
+            st.markdown("### 🏦 Datos Bancarios y QR de Cobro")
             titular_input = st.text_input("Titular de la Cuenta", value=config_negocio.get("titular_cuenta", ""))
             banco_input = st.text_input("Banco o Billetera Virtual (ej: Mercado Pago, Santander)", value=config_negocio.get("banco", ""))
             alias_input = st.text_input("Alias CBU/CVU", value=config_negocio.get("alias", ""))
@@ -2046,6 +2105,12 @@ elif modulo == "⚙️ Configuración del Negocio":
             if qr_subido is not None:
                 ruta_qr_final = guardar_archivo_imagen(qr_subido, "qr_pago")
 
+            ruta_logo_final = config_negocio.get("logo_imagen_path")
+            if logo_subido is not None:
+                ruta_logo_final = guardar_archivo_imagen(logo_subido, "logo_negocio")
+            elif eliminar_logo_check:
+                ruta_logo_final = None
+
             nueva_config = {
                 "nombre_negocio": nombre_neg_input.strip() or "Mi Comercio",
                 "titular_cuenta": titular_input.strip(),
@@ -2053,6 +2118,7 @@ elif modulo == "⚙️ Configuración del Negocio":
                 "alias": alias_input.strip(),
                 "cbu": cbu_input.strip(),
                 "qr_imagen_path": ruta_qr_final,
+                "logo_imagen_path": ruta_logo_final,
                 "smtp_servidor": smtp_srv_input.strip(),
                 "smtp_puerto": int(smtp_prt_input),
                 "smtp_usuario": smtp_usr_input.strip(),
@@ -2062,6 +2128,8 @@ elif modulo == "⚙️ Configuración del Negocio":
             }
 
             if guardar_configuracion(nueva_config):
+                if logo_subido or eliminar_logo_check:
+                    borrar_archivo_imagen_local(config_negocio.get("logo_imagen_path"))
                 st.success("✅ Configuración guardada correctamente.")
                 st.rerun()
             else:
