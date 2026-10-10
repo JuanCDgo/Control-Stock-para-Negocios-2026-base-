@@ -399,8 +399,10 @@ modulos_permitidos = MODULOS_ADMIN if es_admin else MODULOS_CAJERO
 # ==============================================================================
 logo_sidebar = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
 if logo_sidebar:
-    st.sidebar.image(logo_sidebar, use_container_width=True)
-    st.sidebar.title(config_negocio.get('nombre_negocio', 'Mi Comercio'))
+    col_l1, col_l2, col_l3 = st.sidebar.columns([1, 1.5, 1])
+    with col_l2:
+        st.image(logo_sidebar, use_container_width=True)
+    st.sidebar.markdown(f"<h1 style='text-align: center; margin-top: -15px;'>{config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>", unsafe_allow_html=True)
 else:
     st.sidebar.title(f"🏪 {config_negocio.get('nombre_negocio', 'Mi Comercio')}")
 st.sidebar.caption("Gestión Integral, POS, Clientes, Inventario & Caja")
@@ -2059,10 +2061,12 @@ elif modulo == "⚙️ Configuración del Negocio":
             logo_actual_abs = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
             eliminar_logo_check = False
             if logo_actual_abs:
-                c_l1, c_l2 = st.columns([1, 1])
+                c_l1, c_l2, c_l3 = st.columns([1, 1.5, 2.5])
                 with c_l1:
-                    st.image(logo_actual_abs, caption="Logo actual", width=120)
+                    st.image(logo_actual_abs, caption="Logo actual", use_container_width=True)
                 with c_l2:
+                    st.write("")
+                    st.write("")
                     eliminar_logo_check = st.checkbox("🗑️ Eliminar Logo", key="del_logo_cfg")
             
             logo_subido = st.file_uploader(
@@ -2107,7 +2111,7 @@ elif modulo == "⚙️ Configuración del Negocio":
 
             ruta_logo_final = config_negocio.get("logo_imagen_path")
             if logo_subido is not None:
-                ruta_logo_final = guardar_archivo_imagen(logo_subido, "logo_negocio")
+                ruta_logo_final = guardar_archivo_imagen(logo_subido, "logo_negocio", max_dim=300)
             elif eliminar_logo_check:
                 ruta_logo_final = None
 
