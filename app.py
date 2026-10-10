@@ -261,8 +261,7 @@ def guardar_archivo_imagen(uploaded_file, prefijo: str = "img", max_dim: int = 4
         return url_publica
 
     except Exception as e:
-        st.error(f"⚠️ Error al procesar o subir la imagen: {e}")
-        return None
+        raise Exception(f"Error al procesar o subir la imagen al bucket 'productos' de Supabase: {e}")
 
 
 def obtener_ruta_imagen_absoluta(ruta_relativa):
