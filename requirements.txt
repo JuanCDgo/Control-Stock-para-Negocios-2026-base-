@@ -8,3 +8,4 @@ plotly
 fpdf2
 ftfy
 python-dotenv
+openpyxl>=3.1.0

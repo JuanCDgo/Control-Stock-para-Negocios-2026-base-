@@ -1146,3 +1146,285 @@ def actualizar_precios_masivamente(productos_modificados, comercio_id=COMERCIO_I
             print(f"Error actualizando producto {p['id']}: {e}")
     return exitosos
 
+
+def generar_excel_inventario(productos=None, comercio_id=COMERCIO_ID_DEFAULT):
+    """
+    Exporta el inventario completo a un archivo .xlsx (Excel).
+    Columnas: Código, Nombre, Categoría, Precio Costo, Precio Venta, Stock, Stock Mínimo, Puntos de Canje.
+    """
+    import io
+    if productos is None:
+        productos = obtener_productos(comercio_id=comercio_id)
+
+    filas = []
+    for p in productos:
+        cat_nom = p.get("categoria_nombre") or p.get("categoria") or "Sin categoría"
+        filas.append({
+            "Código": str(p.get("codigo", "")),
+            "Nombre": str(p.get("nombre", "")),
+            "Categoría": str(cat_nom),
+            "Precio Costo": round(float(p.get("precio_costo") or 0.0), 2),
+            "Precio Venta": round(float(p.get("precio_venta") or 0.0), 2),
+            "Stock": round(float(p.get("stock_actual") or 0.0), 2),
+            "Stock Mínimo": round(float(p.get("stock_minimo") or 0.0), 2),
+            "Puntos de Canje": int(p.get("puntos_canje") or 0),
+        })
+
+    columnas_orden = [
+        "Código", "Nombre", "Categoría", "Precio Costo", 
+        "Precio Venta", "Stock", "Stock Mínimo", "Puntos de Canje"
+    ]
+    df_exp = pd.DataFrame(filas) if filas else pd.DataFrame(columns=columnas_orden)
+    if not df_exp.empty:
+        df_exp = df_exp[columnas_orden]
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_exp.to_excel(writer, index=False, sheet_name="Inventario")
+    return output.getvalue()
+
+
+def generar_plantilla_excel_productos():
+    """
+    Genera un archivo Excel (.xlsx) con la plantilla de ejemplo para la carga masiva.
+    Columnas: codigo, nombre, categoria, precio_costo, precio_venta, stock, stock_minimo, puntos_canje
+    """
+    import io
+    filas_ejemplo = [
+        {
+            "codigo": "7791234567890",
+            "nombre": "Yerba Mate Clásica 500g",
+            "categoria": "Almacén",
+            "precio_costo": 1200.00,
+            "precio_venta": 1800.00,
+            "stock": 25.0,
+            "stock_minimo": 5.0,
+            "puntos_canje": 0,
+        },
+        {
+            "codigo": "7799876543210",
+            "nombre": "Gaseosa Cola 2.25L",
+            "categoria": "Bebidas",
+            "precio_costo": 1500.00,
+            "precio_venta": 2300.00,
+            "stock": 18.0,
+            "stock_minimo": 6.0,
+            "puntos_canje": 150,
+        },
+        {
+            "codigo": "7795555444433",
+            "nombre": "Galletitas Rellenas Vainilla 160g",
+            "categoria": "Golosinas",
+            "precio_costo": 650.00,
+            "precio_venta": 1050.00,
+            "stock": 30.0,
+            "stock_minimo": 10.0,
+            "puntos_canje": 50,
+        },
+    ]
+    df_plantilla = pd.DataFrame(filas_ejemplo)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_plantilla.to_excel(writer, index=False, sheet_name="Plantilla")
+    return output.getvalue()
+
+
+@clears_cache
+def importar_productos_masivo(df, comercio_id=COMERCIO_ID_DEFAULT):
+    """
+    Importa o actualiza productos en lote en Supabase a partir de un DataFrame.
+    - Si la categoría del archivo no existe, la crea automáticamente.
+    - Si el código ya existe, actualiza el producto existente.
+    - Si el código no existe, inserta el nuevo producto.
+    - Limpia la caché de Streamlit.
+    """
+    supabase = get_connection()
+    if df is None or df.empty:
+        return {"creados": 0, "actualizados": 0, "total": 0, "categorias_creadas": 0, "errores": []}
+
+    # 1. Normalizar nombres de columnas
+    mapeo_columnas = {}
+    for col in df.columns:
+        c_norm = str(col).strip().lower().replace(" ", "_")
+        c_norm = c_norm.replace("ó", "o").replace("í", "i").replace("á", "a").replace("é", "e").replace("ú", "u")
+        if c_norm in ["codigo", "código", "sku", "barcode", "cod"]:
+            mapeo_columnas[col] = "codigo"
+        elif c_norm in ["nombre", "producto", "descripcion", "articulo"]:
+            mapeo_columnas[col] = "nombre"
+        elif c_norm in ["categoria", "categoria_nombre", "rubro"]:
+            mapeo_columnas[col] = "categoria"
+        elif c_norm in ["precio_costo", "costo", "costo_unitario"]:
+            mapeo_columnas[col] = "precio_costo"
+        elif c_norm in ["precio_venta", "venta", "precio"]:
+            mapeo_columnas[col] = "precio_venta"
+        elif c_norm in ["stock", "stock_actual", "cantidad"]:
+            mapeo_columnas[col] = "stock"
+        elif c_norm in ["stock_minimo", "stock_min", "minimo"]:
+            mapeo_columnas[col] = "stock_minimo"
+        elif c_norm in ["puntos_canje", "puntos_de_canje", "puntos", "puntos_canje_premio"]:
+            mapeo_columnas[col] = "puntos_canje"
+
+    df_renombrado = df.rename(columns=mapeo_columnas)
+
+    # 2. Categorías existentes
+    res_cats = supabase.table("categorias").select("id, nombre").eq("comercio_id", comercio_id).execute()
+    cat_map = {c["nombre"].strip().lower(): c["id"] for c in (res_cats.data or [])}
+    categorias_creadas = 0
+
+    # 3. Productos existentes
+    res_prods = supabase.table("productos").select("id, codigo").eq("comercio_id", comercio_id).execute()
+    prod_map = {str(p["codigo"]).strip(): p["id"] for p in (res_prods.data or [])}
+
+    creados = 0
+    actualizados = 0
+    errores = []
+
+    for idx, row in df_renombrado.iterrows():
+        fila_num = idx + 2
+        codigo_raw = row.get("codigo")
+        nombre_raw = row.get("nombre")
+
+        if pd.isna(codigo_raw) or str(codigo_raw).strip() == "":
+            errores.append(f"Fila {fila_num}: El código de barras / SKU está vacío.")
+            continue
+
+        if isinstance(codigo_raw, float) and codigo_raw.is_integer():
+            codigo = str(int(codigo_raw)).strip()
+        else:
+            codigo = str(codigo_raw).strip()
+            if codigo.endswith(".0"):
+                codigo = codigo[:-2]
+
+        if pd.isna(nombre_raw) or str(nombre_raw).strip() == "":
+            errores.append(f"Fila {fila_num} (código {codigo}): El nombre del producto está vacío.")
+            continue
+        nombre = str(nombre_raw).strip()
+
+        try:
+            precio_costo = float(row.get("precio_costo") if pd.notna(row.get("precio_costo")) else 0.0)
+            if precio_costo < 0:
+                errores.append(f"Fila {fila_num} ('{nombre}'): El precio de costo no puede ser negativo.")
+                continue
+        except (ValueError, TypeError):
+            errores.append(f"Fila {fila_num} ('{nombre}'): Precio de costo inválido.")
+            continue
+
+        try:
+            precio_venta = float(row.get("precio_venta") if pd.notna(row.get("precio_venta")) else 0.0)
+            if precio_venta < 0:
+                errores.append(f"Fila {fila_num} ('{nombre}'): El precio de venta no puede ser negativo.")
+                continue
+        except (ValueError, TypeError):
+            errores.append(f"Fila {fila_num} ('{nombre}'): Precio de venta inválido.")
+            continue
+
+        try:
+            stock = float(row.get("stock") if pd.notna(row.get("stock")) else 0.0)
+            if stock < 0:
+                errores.append(f"Fila {fila_num} ('{nombre}'): El stock no puede ser negativo.")
+                continue
+        except (ValueError, TypeError):
+            stock = 0.0
+
+        try:
+            stock_minimo = float(row.get("stock_minimo") if pd.notna(row.get("stock_minimo")) else 0.0)
+            if stock_minimo < 0:
+                errores.append(f"Fila {fila_num} ('{nombre}'): El stock mínimo no puede ser negativo.")
+                continue
+        except (ValueError, TypeError):
+            stock_minimo = 0.0
+
+        try:
+            puntos_canje = int(row.get("puntos_canje") if pd.notna(row.get("puntos_canje")) else 0)
+            if puntos_canje < 0:
+                puntos_canje = 0
+        except (ValueError, TypeError):
+            puntos_canje = 0
+
+        # Categoría
+        cat_raw = row.get("categoria")
+        cat_nombre = str(cat_raw).strip() if pd.notna(cat_raw) and str(cat_raw).strip() else "General"
+        cat_key = cat_nombre.lower()
+
+        if cat_key not in cat_map:
+            try:
+                res_c = supabase.table("categorias").insert({"nombre": cat_nombre, "comercio_id": comercio_id}).execute()
+                if res_c.data:
+                    cat_id = res_c.data[0]["id"]
+                    cat_map[cat_key] = cat_id
+                    categorias_creadas += 1
+                else:
+                    cat_id = None
+            except Exception:
+                res_c = supabase.table("categorias").select("id").eq("comercio_id", comercio_id).ilike("nombre", cat_nombre).limit(1).execute()
+                cat_id = res_c.data[0]["id"] if res_c.data else None
+                if cat_id:
+                    cat_map[cat_key] = cat_id
+        else:
+            cat_id = cat_map[cat_key]
+
+        if precio_costo > 0 and precio_venta >= precio_costo:
+            margen = round(((precio_venta - precio_costo) / precio_costo) * 100.0, 2)
+        else:
+            margen = 0.0
+
+        if codigo in prod_map:
+            prod_id = prod_map[codigo]
+            payload = {
+                "nombre": nombre,
+                "categoria_id": cat_id,
+                "precio_costo": precio_costo,
+                "margen_ganancia": margen,
+                "precio_venta": precio_venta,
+                "usa_precio_manual": True,
+                "stock_actual": stock,
+                "stock_minimo": stock_minimo,
+                "puntos_canje": puntos_canje,
+            }
+            try:
+                supabase.table("productos").update(payload).eq("id", prod_id).eq("comercio_id", comercio_id).execute()
+            except Exception as e:
+                if "puntos_canje" in str(e).lower() or "PGRST204" in str(e):
+                    payload.pop("puntos_canje", None)
+                    supabase.table("productos").update(payload).eq("id", prod_id).eq("comercio_id", comercio_id).execute()
+                else:
+                    errores.append(f"Error actualizando producto '{nombre}' ({codigo}): {e}")
+                    continue
+            actualizados += 1
+        else:
+            payload = {
+                "comercio_id": comercio_id,
+                "codigo": codigo,
+                "nombre": nombre,
+                "categoria_id": cat_id,
+                "precio_costo": precio_costo,
+                "margen_ganancia": margen,
+                "precio_venta": precio_venta,
+                "usa_precio_manual": True,
+                "stock_actual": stock,
+                "stock_minimo": stock_minimo,
+                "imagen_url": "",
+                "puntos_canje": puntos_canje,
+            }
+            try:
+                res_p = supabase.table("productos").insert(payload).execute()
+            except Exception as e:
+                if "puntos_canje" in str(e).lower() or "PGRST204" in str(e):
+                    payload.pop("puntos_canje", None)
+                    res_p = supabase.table("productos").insert(payload).execute()
+                else:
+                    errores.append(f"Error creando producto '{nombre}' ({codigo}): {e}")
+                    continue
+            if res_p and res_p.data:
+                prod_map[codigo] = res_p.data[0]["id"]
+            creados += 1
+
+    st.cache_data.clear()
+    return {
+        "creados": creados,
+        "actualizados": actualizados,
+        "total": creados + actualizados,
+        "categorias_creadas": categorias_creadas,
+        "errores": errores
+    }
+
+

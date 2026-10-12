@@ -1486,12 +1486,13 @@ elif modulo == "📦 Productos e Inventario":
     if "flash_inventario" in st.session_state:
         st.success(st.session_state.pop("flash_inventario"))
 
-    tab_catalogo, tab_nuevo, tab_editar, tab_ajuste, tab_alertas = st.tabs([
+    tab_catalogo, tab_nuevo, tab_editar, tab_ajuste, tab_alertas, tab_masiva = st.tabs([
         "📋 Catálogo de Productos",
         "➕ Nuevo Producto",
         "✏️ Editar Producto",
         "🔄 Ajuste de Stock",
-        "🚨 Monitor de Stock Crítico"
+        "🚨 Monitor de Stock Crítico",
+        "📥 Carga Masiva"
     ])
 
     # 1. Catálogo Completo
@@ -1578,7 +1579,7 @@ elif modulo == "📦 Productos e Inventario":
                             st.session_state["flash_inventario"] = f"✅ ¡Aumento masivo aplicado con éxito! Se actualizaron {exitosos} productos."
                             st.rerun()
 
-        col_filtro1, col_filtro2, col_filtro3 = st.columns([2, 1, 1])
+        col_filtro1, col_filtro2, col_filtro3, col_exp = st.columns([1.8, 1.1, 1, 1.1], gap="small")
         with col_filtro1:
             busqueda = st.text_input("🔍 Buscar por nombre o código / barra:", "")
         with col_filtro2:
@@ -1593,6 +1594,19 @@ elif modulo == "📦 Productos e Inventario":
             vista_idx = opciones_vista.index(valor_actual) if valor_actual in opciones_vista else 0
             vista_elegida = st.selectbox("Vista del Catálogo:", opciones_vista, index=vista_idx, key="inv_vista_ficha_sel")
             st.session_state.inv_vista_ficha = vista_elegida
+        with col_exp:
+            st.write('<div style="height: 28px;"></div>', unsafe_allow_html=True)
+            fecha_export = datetime.now(ZONA_HORARIA).strftime("%d-%m-%Y")
+            todos_para_exp = models.obtener_productos(comercio_id=usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT))
+            excel_bytes = models.generar_excel_inventario(todos_para_exp)
+            st.download_button(
+                label="📥 Exportar a Excel",
+                data=excel_bytes,
+                file_name=f"inventario_productos_{fecha_export}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                help="Exportar el inventario completo a un archivo .xlsx"
+            )
 
         productos = models.obtener_productos(busqueda=busqueda or None, categoria_id=cat_id_filtro)
 
@@ -2227,6 +2241,159 @@ elif modulo == "📦 Productos e Inventario":
                 "deficit": "Déficit / Faltante"
             })
             st.dataframe(df_criticos, use_container_width=True, hide_index=True)
+
+    # 6. Carga Masiva de Productos (Excel / CSV)
+    with tab_masiva:
+        st.subheader("📥 Carga Masiva de Productos")
+        st.caption("Importá nuevos artículos o actualizá precios y stock en lote desde una planilla Excel (.xlsx) o CSV.")
+
+        col_p1, col_p2 = st.columns([1, 1], gap="large")
+
+        with col_p1:
+            with st.container(border=True):
+                st.markdown("#### 📄 Paso 1: Descargar Plantilla de Ejemplo")
+                st.markdown(
+                    "Descargá la planilla modelo con las columnas requeridas:  \n"
+                    "`codigo`, `nombre`, `categoria`, `precio_costo`, `precio_venta`, `stock`, `stock_minimo`, `puntos_canje`"
+                )
+                plantilla_bytes = models.generar_plantilla_excel_productos()
+                st.download_button(
+                    label="📄 Descargar Plantilla de Ejemplo (.xlsx)",
+                    data=plantilla_bytes,
+                    file_name="plantilla_productos_ejemplo.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+        with col_p2:
+            with st.container(border=True):
+                st.markdown("#### 📤 Paso 2: Subir Archivo (.xlsx / .csv)")
+                st.markdown("Seleccioná el archivo con tus productos para procesar.")
+                archivo_subido = st.file_uploader(
+                    "Subir archivo Excel o CSV",
+                    type=["xlsx", "csv"],
+                    key="uploader_carga_masiva",
+                    label_visibility="collapsed"
+                )
+
+        if archivo_subido is not None:
+            st.markdown("---")
+            st.markdown("#### 🔍 Paso 3: Previsualización y Validaciones")
+
+            df_cargado = None
+            try:
+                if archivo_subido.name.lower().endswith(".xlsx"):
+                    df_cargado = pd.read_excel(archivo_subido, dtype={"codigo": str, "Código": str})
+                else:
+                    try:
+                        df_cargado = pd.read_csv(archivo_subido, dtype={"codigo": str, "Código": str}, sep=None, engine="python", encoding="utf-8")
+                    except UnicodeDecodeError:
+                        archivo_subido.seek(0)
+                        df_cargado = pd.read_csv(archivo_subido, dtype={"codigo": str, "Código": str}, sep=None, engine="python", encoding="latin1")
+            except Exception as e:
+                st.error(f"❌ Error al leer el archivo: {e}")
+
+            if df_cargado is not None:
+                df_cargado = df_cargado.dropna(how="all").reset_index(drop=True)
+
+                if df_cargado.empty:
+                    st.warning("⚠️ El archivo subido no contiene filas con datos.")
+                else:
+                    # Mapeo normalizado
+                    mapeo_prev = {}
+                    for col in df_cargado.columns:
+                        c_norm = str(col).strip().lower().replace(" ", "_")
+                        c_norm = c_norm.replace("ó", "o").replace("í", "i").replace("á", "a").replace("é", "e").replace("ú", "u")
+                        if c_norm in ["codigo", "código", "sku", "barcode", "cod"]:
+                            mapeo_prev[col] = "codigo"
+                        elif c_norm in ["nombre", "producto", "descripcion", "articulo"]:
+                            mapeo_prev[col] = "nombre"
+                        elif c_norm in ["categoria", "categoria_nombre", "rubro"]:
+                            mapeo_prev[col] = "categoria"
+                        elif c_norm in ["precio_costo", "costo", "costo_unitario"]:
+                            mapeo_prev[col] = "precio_costo"
+                        elif c_norm in ["precio_venta", "venta", "precio"]:
+                            mapeo_prev[col] = "precio_venta"
+                        elif c_norm in ["stock", "stock_actual", "cantidad"]:
+                            mapeo_prev[col] = "stock"
+                        elif c_norm in ["stock_minimo", "stock_min", "minimo"]:
+                            mapeo_prev[col] = "stock_minimo"
+                        elif c_norm in ["puntos_canje", "puntos_de_canje", "puntos", "puntos_canje_premio"]:
+                            mapeo_prev[col] = "puntos_canje"
+
+                    df_validar = df_cargado.rename(columns=mapeo_prev)
+
+                    # Validaciones básicas
+                    errores_validacion = []
+                    for idx, row in df_validar.iterrows():
+                        fila_num = idx + 2
+                        nom = str(row.get("nombre", "")).strip() if pd.notna(row.get("nombre")) else ""
+                        cod = str(row.get("codigo", "")).strip() if pd.notna(row.get("codigo")) else ""
+
+                        if not cod:
+                            errores_validacion.append(f"Fila {fila_num}: Falta el código de barras / SKU.")
+                        if not nom:
+                            errores_validacion.append(f"Fila {fila_num} (código {cod or 'S/C'}): Falta el nombre del producto.")
+
+                        try:
+                            pc = float(row.get("precio_costo", 0)) if pd.notna(row.get("precio_costo")) else 0.0
+                            if pc < 0:
+                                errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de costo negativo (${pc}).")
+                        except (ValueError, TypeError):
+                            errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de costo no numérico.")
+
+                        try:
+                            pv = float(row.get("precio_venta", 0)) if pd.notna(row.get("precio_venta")) else 0.0
+                            if pv < 0:
+                                errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de venta negativo (${pv}).")
+                        except (ValueError, TypeError):
+                            errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de venta no numérico.")
+
+                    m1, m2, m3 = st.columns(3)
+                    with m1:
+                        st.metric("Total Filas Detectadas", len(df_cargado))
+                    with m2:
+                        if not errores_validacion:
+                            st.metric("Validación de Datos", "✅ Sin errores")
+                        else:
+                            st.metric("Validación de Datos", f"⚠️ {len(errores_validacion)} fila(s) con aviso")
+                    with m3:
+                        cats_en_archivo = [c for c in df_validar["categoria"].dropna().unique().tolist() if str(c).strip()] if "categoria" in df_validar.columns else []
+                        st.metric("Categorías en Archivo", len(cats_en_archivo) if cats_en_archivo else 1)
+
+                    if errores_validacion:
+                        with st.expander(f"⚠️ Ver detalles de {len(errores_validacion)} fila(s) con observaciones", expanded=True):
+                            for err in errores_validacion[:10]:
+                                st.warning(err)
+                            if len(errores_validacion) > 10:
+                                st.caption(f"...y {len(errores_validacion) - 10} observaciones más.")
+
+                    st.markdown("**Vista previa del archivo cargado:**")
+                    st.dataframe(df_cargado, use_container_width=True, hide_index=False)
+
+                    st.markdown("---")
+                    st.markdown("#### ✅ Paso 4: Confirmación")
+                    st.caption("Al confirmar, se crearán o actualizarán los productos y las categorías inexistentes se darán de alta automáticamente.")
+
+                    btn_confirmar = st.button(
+                        "Confirmar e Importar a Base de Datos",
+                        type="primary",
+                        use_container_width=True,
+                        key="btn_confirmar_carga_masiva"
+                    )
+
+                    if btn_confirmar:
+                        with st.spinner("Importando productos y actualizando base de datos en Supabase..."):
+                            comercio_id_actual = usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
+                            res_imp = models.importar_productos_masivo(df_cargado, comercio_id=comercio_id_actual)
+                            
+                            cats_msg = f", {res_imp['categorias_creadas']} categorías nuevas creadas" if res_imp.get("categorias_creadas") else ""
+                            msg_exito = (
+                                f"🎉 ¡Carga masiva completada! Se procesaron {res_imp['total']} productos "
+                                f"({res_imp['creados']} creados, {res_imp['actualizados']} actualizados{cats_msg})."
+                            )
+                            st.session_state["flash_inventario"] = msg_exito
+                            st.rerun()
 
 
 # ==============================================================================
