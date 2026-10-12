@@ -453,10 +453,15 @@ def generar_pdf_ticket_termico(
     elements.append(Paragraph(f"TOTAL: ", total_style))
     
     puntos_ganados = datos_ticket.get("puntos_ganados", 0)
+    puntos_canjeados = datos_ticket.get("puntos_canjeados", 0)
+    if puntos_canjeados > 0:
+        elements.append(Spacer(1, 2))
+        elements.append(Paragraph(f"Puntos canjeados: -{puntos_canjeados:,}", normal_ticket))
     if puntos_ganados > 0:
         elements.append(Spacer(1, 2))
+        elements.append(Paragraph(f"Puntos ganados: +{puntos_ganados:,.2f}", normal_ticket))
+    if puntos_canjeados > 0 or puntos_ganados > 0:
         puntos_balance = datos_ticket.get("puntos_balance", 0)
-        elements.append(Paragraph(f"Puntos acumulados: +{puntos_ganados:,.2f}", normal_ticket))
         elements.append(Paragraph(f"Balance total de puntos: {puntos_balance:,.2f}", normal_ticket))
 
     elements.append(Spacer(1, 4))
@@ -493,12 +498,14 @@ def armar_mensaje_whatsapp_ticket(datos_ticket: Dict[str, Any]) -> str:
     ]
 
     puntos_ganados = datos_ticket.get("puntos_ganados", 0)
+    puntos_canjeados = datos_ticket.get("puntos_canjeados", 0)
+    if puntos_canjeados > 0:
+        lineas.append(f"- *Puntos canjeados:* -{puntos_canjeados:,}")
     if puntos_ganados > 0:
+        lineas.append(f"- *Puntos ganados:* +{puntos_ganados:,.2f}")
+    if puntos_canjeados > 0 or puntos_ganados > 0:
         puntos_balance = datos_ticket.get("puntos_balance", 0)
-        lineas.extend([
-            f"- *Puntos acumulados:* +{puntos_ganados:,.2f}",
-            f"- *Balance de puntos:* {puntos_balance:,.2f}"
-        ])
+        lineas.append(f"- *Balance de puntos:* {puntos_balance:,.2f}")
 
     lineas.extend([
         "",

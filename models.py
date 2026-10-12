@@ -111,6 +111,7 @@ def _formatear_producto(p):
         "stock_minimo": float(p.get("stock_minimo") or 0.0),
         "imagen_url": imagen,
         "imagen_path": imagen or None,
+        "puntos_canje": int(p.get("puntos_canje") or 0),
     }
 
 @st.cache_data(ttl=120)
@@ -160,14 +161,25 @@ def save_producto(datos, comercio_id=COMERCIO_ID_DEFAULT):
         "usa_precio_manual": datos["usa_precio_manual"],
         "stock_actual": datos["stock_actual"],
         "stock_minimo": datos["stock_minimo"],
-        "imagen_url": datos.get("imagen_url", "")
+        "imagen_url": datos.get("imagen_url", ""),
+        "puntos_canje": int(datos.get("puntos_canje") or 0),
     }
 
     # Si viene con ID, actualiza; si no, inserta uno nuevo
-    if datos.get("id"):
-        res = supabase.table("productos").update(payload).eq("id", datos["id"]).execute()
-    else:
-        res = supabase.table("productos").insert(payload).execute()
+    try:
+        if datos.get("id"):
+            res = supabase.table("productos").update(payload).eq("id", datos["id"]).execute()
+        else:
+            res = supabase.table("productos").insert(payload).execute()
+    except Exception as e:
+        if "puntos_canje" in str(e).lower():
+            payload.pop("puntos_canje", None)
+            if datos.get("id"):
+                res = supabase.table("productos").update(payload).eq("id", datos["id"]).execute()
+            else:
+                res = supabase.table("productos").insert(payload).execute()
+        else:
+            raise e
     return res.data
 
 @clears_cache
@@ -242,7 +254,7 @@ def _verificar_codigo_libre(supabase, codigo, comercio_id, excluir_id=None):
 @clears_cache
 def crear_producto(codigo, nombre, categoria_id, precio_costo, margen_ganancia, usa_precio_manual,
                    precio_venta_manual, stock_actual, stock_minimo, imagen_path=None,
-                   comercio_id=COMERCIO_ID_DEFAULT):
+                   puntos_canje=0, comercio_id=COMERCIO_ID_DEFAULT):
     """Crea un producto en Supabase y devuelve su ID. `imagen_path` se guarda en la columna imagen_url."""
     codigo, nombre, precio_venta = _validar_datos_producto(
         codigo, nombre, precio_costo, margen_ganancia, usa_precio_manual,
@@ -251,7 +263,7 @@ def crear_producto(codigo, nombre, categoria_id, precio_costo, margen_ganancia, 
     supabase = get_connection()
     _verificar_codigo_libre(supabase, codigo, comercio_id)
 
-    res = supabase.table("productos").insert({
+    payload = {
         "comercio_id": comercio_id,
         "codigo": codigo,
         "nombre": nombre,
@@ -263,7 +275,17 @@ def crear_producto(codigo, nombre, categoria_id, precio_costo, margen_ganancia, 
         "stock_actual": float(stock_actual),
         "stock_minimo": float(stock_minimo),
         "imagen_url": imagen_path or "",
-    }).execute()
+        "puntos_canje": int(puntos_canje or 0),
+    }
+    try:
+        res = supabase.table("productos").insert(payload).execute()
+    except Exception as e:
+        if "puntos_canje" in str(e).lower():
+            payload.pop("puntos_canje", None)
+            res = supabase.table("productos").insert(payload).execute()
+        else:
+            raise e
+
     if not res.data:
         raise Exception("Supabase no confirmó la creación del producto (revisá los permisos / RLS de la tabla productos).")
     return res.data[0]["id"]
@@ -272,7 +294,7 @@ def crear_producto(codigo, nombre, categoria_id, precio_costo, margen_ganancia, 
 @clears_cache
 def actualizar_producto(producto_id, codigo, nombre, categoria_id, precio_costo, margen_ganancia,
                         usa_precio_manual, precio_venta_manual, stock_actual, stock_minimo,
-                        imagen_path=None, eliminar_imagen=False, comercio_id=COMERCIO_ID_DEFAULT):
+                        imagen_path=None, eliminar_imagen=False, puntos_canje=0, comercio_id=COMERCIO_ID_DEFAULT):
     """
     Actualiza un producto. Foto: si viene `imagen_path` se reemplaza; si `eliminar_imagen` es True
     se borra la referencia; si no, se conserva la actual.
@@ -294,13 +316,22 @@ def actualizar_producto(producto_id, codigo, nombre, categoria_id, precio_costo,
         "usa_precio_manual": bool(usa_precio_manual),
         "stock_actual": float(stock_actual),
         "stock_minimo": float(stock_minimo),
+        "puntos_canje": int(puntos_canje or 0),
     }
     if imagen_path:
         payload["imagen_url"] = imagen_path
     elif eliminar_imagen:
         payload["imagen_url"] = ""
 
-    res = supabase.table("productos").update(payload).eq("id", producto_id).eq("comercio_id", comercio_id).execute()
+    try:
+        res = supabase.table("productos").update(payload).eq("id", producto_id).eq("comercio_id", comercio_id).execute()
+    except Exception as e:
+        if "puntos_canje" in str(e).lower():
+            payload.pop("puntos_canje", None)
+            res = supabase.table("productos").update(payload).eq("id", producto_id).eq("comercio_id", comercio_id).execute()
+        else:
+            raise e
+
     if not res.data:
         raise BusinessLogicError("No se pudo actualizar: el producto no existe o no hay permiso de escritura (RLS).")
     return True
@@ -363,7 +394,7 @@ def _formatear_cliente(c):
         "email": c.get("email") or "",
         "limite_credito": float(c.get("limite_credito") or 0.0),
         "saldo_deudor": float(c.get("saldo_deudor") or 0.0),
-        "puntos": float(c.get("puntos") or 0.0),
+        "puntos": int(round(float(c.get("puntos") or 0.0))),
         "created_at": c.get("created_at") or ""
     }
 
@@ -498,6 +529,46 @@ def registrar_pago_cliente(cliente_id, monto, descripcion="Pago a cuenta", comer
     """Alias compatible con versiones previas."""
     return registrar_abono_cliente(cliente_id, monto, metodo_pago="Efectivo", descripcion=descripcion, comercio_id=comercio_id)
 
+@clears_cache
+def sumar_puntos_cliente(cliente_id, puntos_a_sumar, comercio_id=COMERCIO_ID_DEFAULT):
+    """
+    Suma puntos al cliente en el programa de fidelidad.
+    Devuelve el nuevo balance de puntos (entero).
+    """
+    puntos_val = int(puntos_a_sumar or 0)
+    if puntos_val <= 0:
+        return 0
+    supabase = get_connection()
+    cli = supabase.table("clientes").select("id, puntos").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
+    if not cli.data:
+        raise BusinessLogicError("Cliente no encontrado.")
+    actual = int(round(float(cli.data[0].get("puntos") or 0.0)))
+    nuevo = actual + puntos_val
+    supabase.table("clientes").update({"puntos": nuevo}).eq("id", cliente_id).execute()
+    return nuevo
+
+@clears_cache
+def restar_puntos_cliente(cliente_id, puntos_a_restar, comercio_id=COMERCIO_ID_DEFAULT):
+    """
+    Resta puntos al cliente cuando se realiza un canje de premios.
+    Valida que el cliente posea puntos suficientes; si no alcanza, lanza BusinessLogicError.
+    Devuelve el nuevo balance de puntos (entero).
+    """
+    puntos_val = int(puntos_a_restar or 0)
+    if puntos_val <= 0:
+        return 0
+    supabase = get_connection()
+    cli = supabase.table("clientes").select("id, nombre, puntos").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
+    if not cli.data:
+        raise BusinessLogicError("Cliente no encontrado.")
+    actual = int(round(float(cli.data[0].get("puntos") or 0.0)))
+    if actual < puntos_val:
+        nombre = cli.data[0].get("nombre") or "El cliente"
+        raise BusinessLogicError(f"Puntos insuficientes: {nombre} tiene {actual} puntos y el canje requiere {puntos_val} puntos.")
+    nuevo = actual - puntos_val
+    supabase.table("clientes").update({"puntos": nuevo}).eq("id", cliente_id).execute()
+    return nuevo
+
 @st.cache_data(ttl=120)
 def obtener_movimientos_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
     """Obtiene el historial cronológico de movimientos (cargos y pagos) de un cliente."""
@@ -541,13 +612,14 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
     """
     Registra la venta, descuenta stock y, si es fiado, carga la deuda al cliente.
 
-    `items`: lista de dicts con `producto_id` (o `id`) y `cantidad`. El precio, el costo
-    y el total se toman SIEMPRE de la base, nunca del carrito.
-    Devuelve el ID de la venta (ticket).
+    `items`: lista de dicts con `producto_id` (o `id`), `cantidad`, y opcionalmente `es_canje`.
+    Para ítems normales el precio se toma de la base. Para ítems en canje (`es_canje=True`),
+    el precio de venta pasa a $0.00, el stock se descuenta de forma habitual y se descuentan
+    los puntos correspondientes de la cuenta del cliente en Supabase.
+    Devuelve el ID de la venta (ticket) y los puntos ganados o netos.
 
-    Toda la escritura (stock, cabecera, detalle, cuenta corriente) ocurre en UNA sola
-    transacción dentro de la función RPC `registrar_venta_atomica` (ver
-    sql/registrar_venta_atomica.sql): o se guarda todo o no se guarda nada.
+    Toda la escritura (stock, cabecera, detalle, cuenta corriente y fidelidad) ocurre en UNA
+    sola transacción dentro de la función RPC `registrar_venta_atomica`.
     """
     if not items:
         raise BusinessLogicError("El carrito está vacío.")
@@ -558,45 +630,89 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
 
     supabase = get_connection()
 
-    # 1. Consolidar cantidades por producto (el mismo producto puede venir repetido)
-    cantidades = {}
+    # 1. Consolidar cantidades por (producto_id, es_canje)
+    grupos = {}  # (pid, es_canje): cantidad
     for it in items:
         pid = it.get("producto_id", it.get("id"))
         cantidad = float(it.get("cantidad", 0))
+        es_canje = bool(it.get("es_canje", False))
         if pid is None or cantidad <= 0:
             raise BusinessLogicError("Hay un ítem inválido en el carrito (producto o cantidad incorrectos).")
-        cantidades[pid] = cantidades.get(pid, 0.0) + cantidad
+        key = (pid, es_canje)
+        grupos[key] = grupos.get(key, 0.0) + cantidad
 
-    # 2. Leer precio y costo vigentes de la base (el stock lo valida la RPC con la fila bloqueada)
-    prods_res = (
-        supabase.table("productos")
-        .select("id, precio_costo, precio_venta")
-        .eq("comercio_id", comercio_id)
-        .in_("id", list(cantidades.keys()))
-        .execute()
-    )
+    todos_pids = list({pid for pid, _ in grupos.keys()})
+
+    # 2. Leer datos vigentes de los productos desde la base de datos
+    try:
+        prods_res = (
+            supabase.table("productos")
+            .select("id, nombre, precio_costo, precio_venta, puntos_canje")
+            .eq("comercio_id", comercio_id)
+            .in_("id", todos_pids)
+            .execute()
+        )
+    except Exception:
+        # Fallback si la columna puntos_canje aún no estuviese en la base
+        prods_res = (
+            supabase.table("productos")
+            .select("id, nombre, precio_costo, precio_venta")
+            .eq("comercio_id", comercio_id)
+            .in_("id", todos_pids)
+            .execute()
+        )
     productos = {p["id"]: p for p in (prods_res.data or [])}
 
     detalles = []
     total_venta = 0.0
-    for pid, cantidad in cantidades.items():
+    total_puntos_canje = 0
+
+    for (pid, es_canje), cantidad in grupos.items():
         prod = productos.get(pid)
         if prod is None:
             raise BusinessLogicError(f"El producto #{pid} ya no existe en el catálogo.")
-        precio = float(prod["precio_venta"])
-        total_venta += round(cantidad * precio, 2)
+
+        costo = float(prod.get("precio_costo") or 0.0)
+
+        if es_canje:
+            puntos_unidad = int(prod.get("puntos_canje") or 0)
+            if puntos_unidad <= 0:
+                raise BusinessLogicError(f"El producto '{prod['nombre']}' no participa del programa de canje por premios.")
+            total_puntos_canje += int(round(puntos_unidad * cantidad))
+            precio = 0.0
+        else:
+            precio = float(prod.get("precio_venta") or 0.0)
+            total_venta += round(cantidad * precio, 2)
+
         detalles.append({
             "producto_id": pid,
             "cantidad": cantidad,
             "precio_unitario": precio,
-            "costo_unitario": float(prod["precio_costo"] or 0.0),
+            "costo_unitario": costo,
         })
+
     total_venta = round(total_venta, 2)
 
-    # 3. Una única llamada transaccional
-    puntos_ganados = 0.0
+    # Validar cliente y puntos acumulados para canje
+    if total_puntos_canje > 0:
+        if not cliente_id:
+            raise BusinessLogicError("Para canjear productos por puntos tenés que seleccionar un cliente registrado.")
+        cli_res = supabase.table("clientes").select("id, nombre, puntos").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
+        if not cli_res.data:
+            raise BusinessLogicError("El cliente seleccionado no existe.")
+        puntos_actuales = int(round(float(cli_res.data[0].get("puntos") or 0.0)))
+        if puntos_actuales < total_puntos_canje:
+            nombre_cli = cli_res.data[0].get("nombre") or "El cliente"
+            raise BusinessLogicError(
+                f"Puntos insuficientes: {nombre_cli} tiene {puntos_actuales} puntos y el canje requiere {total_puntos_canje} puntos."
+            )
+
+    # 3. Cálculo de puntos ganados y puntos netos
+    puntos_ganados_compra = 0.0
     if cliente_id is not None:
-        puntos_ganados = round(total_venta * 0.01, 2)
+        puntos_ganados_compra = round(total_venta * 0.01, 2)
+
+    puntos_netos = round(puntos_ganados_compra - total_puntos_canje, 2)
 
     payload = {
         "p_comercio_id": comercio_id,
@@ -604,7 +720,7 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
         "p_metodo_pago": forma_pago,
         "p_total": total_venta,
         "p_items": detalles,
-        "p_puntos_ganados": puntos_ganados
+        "p_puntos_ganados": puntos_netos
     }
     try:
         res = supabase.rpc("registrar_venta_atomica", payload).execute()
@@ -626,7 +742,7 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
         venta_id = venta_id[0] if venta_id else None
     if venta_id is None:
         raise Exception("Error al registrar la venta en la base de datos.")
-    return venta_id, puntos_ganados
+    return venta_id, puntos_netos
 
 @st.cache_data(ttl=120)
 def obtener_productos_bajo_stock(comercio_id=COMERCIO_ID_DEFAULT):

@@ -663,7 +663,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                 else:
                     encontrado = False
                     for it in st.session_state.carrito:
-                        if it["producto_id"] == prod_esc["id"]:
+                        if it["producto_id"] == prod_esc["id"] and not it.get("es_canje"):
                             it["cantidad"] += 1
                             it["subtotal"] = round(it["cantidad"] * it["precio_unitario"], 2)
                             encontrado = True
@@ -676,7 +676,10 @@ if modulo == "🛒 Punto de Venta (POS)":
                             "precio_unitario": prod_esc["precio_venta"],
                             "cantidad": 1,
                             "subtotal": round(prod_esc["precio_venta"], 2),
-                            "imagen_path": prod_esc.get("imagen_path")
+                            "imagen_path": prod_esc.get("imagen_path"),
+                            "puntos_canje": int(prod_esc.get("puntos_canje") or 0),
+                            "es_canje": False,
+                            "precio_original": prod_esc["precio_venta"]
                         })
                     st.toast(f"🛒 Agregado: {prod_esc['nombre']} x1 ($ {prod_esc['precio_venta']:,.2f})", icon="📦")
                     st.rerun()
@@ -895,7 +898,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                         else:
                             encontrado = False
                             for item in st.session_state.carrito:
-                                if item["producto_id"] == prod_info["id"]:
+                                if item["producto_id"] == prod_info["id"] and not item.get("es_canje"):
                                     item["cantidad"] += cantidad
                                     item["subtotal"] = round(item["cantidad"] * item["precio_unitario"], 2)
                                     encontrado = True
@@ -908,7 +911,10 @@ if modulo == "🛒 Punto de Venta (POS)":
                                     "precio_unitario": prod_info["precio_venta"],
                                     "cantidad": cantidad,
                                     "subtotal": round(cantidad * prod_info["precio_venta"], 2),
-                                    "imagen_path": prod_info.get("imagen_path")
+                                    "imagen_path": prod_info.get("imagen_path"),
+                                    "puntos_canje": int(prod_info.get("puntos_canje") or 0),
+                                    "es_canje": False,
+                                    "precio_original": prod_info["precio_venta"]
                                 })
                             # Resetear cantidad a 1.0 para el siguiente artículo. El widget ya
                             # fue instanciado en este run, así que no se puede tocar su key
@@ -939,13 +945,31 @@ if modulo == "🛒 Punto de Venta (POS)":
         cliente_pos_id = cliente_pos["id"] if cliente_pos else None
 
         if cliente_pos_id:
+            pts_actual = int(round(float(cliente_pos.get('puntos') or 0)))
+            pts_canjes_carrito = sum(
+                int(round(it.get("puntos_canje", 0) * it.get("cantidad", 1)))
+                for it in st.session_state.carrito if it.get("es_canje")
+            )
             total_venta_previa = round(sum(item["subtotal"] for item in st.session_state.carrito), 2)
-            pts_actual = cliente_pos.get('puntos', 0)
             pts_sumar = round(total_venta_previa * 0.01, 2)
-            if total_venta_previa > 0:
-                st.success(f"🏷️ **Puntos Acumulados:** {pts_actual:,.2f} pts  |  ✨ **Esta compra sumará:** +{pts_sumar:,.2f} pts")
-            else:
-                st.info(f"🏷️ **Puntos Acumulados:** {pts_actual:,.2f} pts")
+            pts_restantes = pts_actual - pts_canjes_carrito
+            color_saldo = "#16A34A" if pts_restantes >= 0 else "#DC2626"
+
+            st.markdown(
+                f"""
+                <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 9px; padding: 10px 14px; margin: 8px 0 12px 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 700; color: #1E3A8A; font-size: 0.95rem;">⭐ Club de Puntos: {cliente_pos['nombre']}</span>
+                        <span style="background: #2563EB; color: white; padding: 2px 10px; border-radius: 12px; font-weight: 800; font-size: 0.95rem;">{pts_actual:,} pts</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 0.82rem; color: #1E40AF;">
+                        <span>🎁 Canjes en carrito: <b>{pts_canjes_carrito:,} pts</b></span>
+                        <span>✨ Saldo disponible: <b style="color: {color_saldo};">{pts_restantes:,} pts</b></span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
         # 2. Bloque de Comprobante / Ticket recién emitido (si existe)
         if "ultimo_ticket" in st.session_state and st.session_state["ultimo_ticket"]:
@@ -981,8 +1005,16 @@ if modulo == "🛒 Punto de Venta (POS)":
             st.info("El carrito está vacío. Agregue artículos escaneando o desde el panel izquierdo.")
         else:
             for idx, item in enumerate(st.session_state.carrito):
+                item.setdefault("puntos_canje", 0)
+                item.setdefault("es_canje", False)
+                item.setdefault("precio_original", item.get("precio_unitario", 0.0))
+
+                es_canje_item = bool(item.get("es_canje", False))
+                pts_unit = int(item.get("puntos_canje", 0))
+                pts_tot_item = int(round(pts_unit * item.get("cantidad", 1)))
+
                 with st.container(border=True):
-                    c_img, c_info, c_sub, c_del = st.columns([0.6, 2.7, 1.4, 0.6], gap="small")
+                    c_img, c_info, c_sub, c_del = st.columns([0.6, 2.5, 1.4, 0.5], gap="small")
                     with c_img:
                         img_item = obtener_ruta_imagen_absoluta(item.get("imagen_path"))
                         if img_item:
@@ -991,13 +1023,59 @@ if modulo == "🛒 Punto de Venta (POS)":
                             st.markdown("<div style='font-size: 20px; text-align: center; margin-top: 4px;'>📦</div>", unsafe_allow_html=True)
                     with c_info:
                         st.markdown(f"**{item['nombre']}** (`{item['codigo']}`)")
-                        st.caption(f"{item['cantidad']:g} unid. x ${item['precio_unitario']:,.2f}")
+                        if es_canje_item:
+                            st.markdown("<span style='background: #FEF3C7; color: #92400E; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;'>🎁 Canje por Puntos ($0.00)</span>", unsafe_allow_html=True)
+                            st.caption(f"{item['cantidad']:g} unid. | Costo: {pts_tot_item} pts")
+                        else:
+                            st.caption(f"{item['cantidad']:g} unid. x ${item['precio_unitario']:,.2f}")
                     with c_sub:
-                        st.markdown(f"**${item['subtotal']:,.2f}**")
+                        if es_canje_item:
+                            st.markdown("<span style='color: #16A34A; font-weight: 800; font-size: 1.15rem;'>$0.00</span>", unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"**${item['subtotal']:,.2f}**")
                     with c_del:
                         if st.button("❌", key=f"del_cart_{idx}"):
                             st.session_state.carrito.pop(idx)
                             st.rerun()
+
+                    # Opción/Botón de Canje con Puntos
+                    if pts_unit > 0:
+                        c_canje_act, c_canje_txt = st.columns([1.5, 2.5], gap="small")
+                        with c_canje_act:
+                            if not es_canje_item:
+                                if st.button("🎁 Canjear con Puntos", key=f"btn_canje_{idx}", use_container_width=True):
+                                    if not cliente_pos:
+                                        st.warning("⚠️ Debés seleccionar un cliente registrado arriba para canjear con puntos.")
+                                    else:
+                                        pts_cli = int(round(float(cliente_pos.get("puntos") or 0)))
+                                        otros_canjes = sum(
+                                            int(round(it.get("puntos_canje", 0) * it.get("cantidad", 1)))
+                                            for i, it in enumerate(st.session_state.carrito)
+                                            if i != idx and it.get("es_canje")
+                                        )
+                                        pts_disponibles = pts_cli - otros_canjes
+                                        if pts_disponibles < pts_tot_item:
+                                            st.error(f"⛔ Puntos insuficientes: Se requieren {pts_tot_item} pts y {cliente_pos['nombre']} solo dispone de {pts_disponibles} pts.")
+                                        else:
+                                            item["es_canje"] = True
+                                            item["precio_original"] = item.get("precio_original") or item["precio_unitario"]
+                                            item["precio_unitario"] = 0.0
+                                            item["subtotal"] = 0.0
+                                            st.toast(f"🎁 Canje activado para {item['nombre']} ({pts_tot_item} pts)", icon="🎉")
+                                            st.rerun()
+                            else:
+                                if st.button("↩️ Cancelar Canje", key=f"btn_cancel_canje_{idx}", use_container_width=True):
+                                    item["es_canje"] = False
+                                    p_orig = float(item.get("precio_original") or 0.0)
+                                    item["precio_unitario"] = p_orig
+                                    item["subtotal"] = round(item["cantidad"] * p_orig, 2)
+                                    st.toast(f"↩️ Canje cancelado para {item['nombre']}", icon="ℹ️")
+                                    st.rerun()
+                        with c_canje_txt:
+                            if es_canje_item:
+                                st.caption(f"✨ Canjeando por **{pts_tot_item} pts**")
+                            else:
+                                st.caption(f"🎁 Requiere **{pts_tot_item} pts** ({pts_unit} pts c/u)")
 
             total_venta = round(sum(item["subtotal"] for item in st.session_state.carrito), 2)
             st.markdown(
@@ -1064,6 +1142,35 @@ if modulo == "🛒 Punto de Venta (POS)":
                         else:
                             st.success(f"✅ Venta autorizada a la cuenta de {cliente_pos['nombre']}.")
 
+            # CANJE DE PREMIOS POR PUNTOS: Validar cliente y saldo suficiente
+            bloquear_canje_puntos = False
+            canjes_carrito = [it for it in st.session_state.carrito if it.get("es_canje")]
+            if canjes_carrito:
+                total_pts_pedidos = sum(
+                    int(round(it.get("puntos_canje", 0) * it.get("cantidad", 1)))
+                    for it in canjes_carrito
+                )
+                with st.container(border=True):
+                    st.markdown("#### 🎁 Canje de Premios con Puntos")
+                    if cliente_pos is None:
+                        st.error("⛔ Para canjear productos con puntos debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
+                        bloquear_canje_puntos = True
+                    else:
+                        pts_cli = int(round(float(cliente_pos.get("puntos") or 0)))
+                        c_p1, c_p2 = st.columns(2)
+                        with c_p1:
+                            st.markdown(f"**Puntos Acumulados:** {pts_cli:,} pts")
+                            st.markdown(f"**Puntos a Canjear:** {total_pts_pedidos:,} pts")
+                        with c_p2:
+                            saldo_pts_post = pts_cli - total_pts_pedidos
+                            color_pts = "#16A34A" if saldo_pts_post >= 0 else "#DC2626"
+                            st.markdown(f"**Saldo Final:** <b style='color: {color_pts};'>{saldo_pts_post:,} pts</b>", unsafe_allow_html=True)
+                        if pts_cli < total_pts_pedidos:
+                            st.error(f"⛔ **PUNTOS INSUFICIENTES:** Los canjes en el carrito suman {total_pts_pedidos:,} pts y {cliente_pos['nombre']} solo posee {pts_cli:,} pts acumulados. Cancelá el canje o ajustá la cantidad.")
+                            bloquear_canje_puntos = True
+                        else:
+                            st.success(f"✅ Canje autorizado: Se descontarán {total_pts_pedidos:,} puntos de la cuenta de {cliente_pos['nombre']}.")
+
             st.write("")
             col_btn_vender, col_btn_vaciar = st.columns([2.5, 1], gap="small")
             with col_btn_vaciar:
@@ -1071,12 +1178,17 @@ if modulo == "🛒 Punto de Venta (POS)":
                     st.session_state.carrito = []
                     st.rerun()
             with col_btn_vender:
-                boton_deshabilitado = bloquear_venta_fiado
+                boton_deshabilitado = bloquear_venta_fiado or bloquear_canje_puntos
                 if st.button(f"✅ CONFIRMAR Y COBRAR (${total_venta:,.2f})", type="primary", disabled=boton_deshabilitado, use_container_width=True):
 
                     try:
                         items_venta = [
-                            {"producto_id": it["producto_id"], "cantidad": it["cantidad"]}
+                            {
+                                "producto_id": it["producto_id"],
+                                "cantidad": it["cantidad"],
+                                "es_canje": it.get("es_canje", False),
+                                "puntos_canje": it.get("puntos_canje", 0)
+                            }
                             for it in st.session_state.carrito
                         ]
                         items_ticket = [dict(it) for it in st.session_state.carrito]
@@ -1084,17 +1196,24 @@ if modulo == "🛒 Punto de Venta (POS)":
                         fecha_ticket = datetime.now(ZONA_HORARIA).strftime("%d/%m/%Y %H:%M")
                         nombre_cli_tk = cliente_pos["nombre"] if cliente_pos else "Consumidor Final"
 
+                        puntos_canjeados = sum(
+                            int(round(it.get("puntos_canje", 0) * it.get("cantidad", 1)))
+                            for it in st.session_state.carrito if it.get("es_canje")
+                        )
+
                         venta_id, puntos_ganados = models.registrar_venta(
                             items=items_venta,
                             forma_pago=forma_pago,
                             cliente_id=cliente_pos_id
                         )
 
-                        puntos_balance = 0.0
+                        puntos_balance = 0
                         if cliente_pos_id:
+                            models.get_clientes.clear()
+                            models.obtener_clientes.clear()
                             cli_upd = next((c for c in models.obtener_clientes() if c["id"] == cliente_pos_id), None)
                             if cli_upd:
-                                puntos_balance = cli_upd.get("puntos", 0)
+                                puntos_balance = int(round(float(cli_upd.get("puntos") or 0)))
 
                         # Generar comprobante en PDF formato térmico 80 mm
                         datos_tk = {
@@ -1106,6 +1225,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                             "total_venta": total_ticket,
                             "puntos_ganados": puntos_ganados,
                             "puntos_balance": puntos_balance,
+                            "puntos_canjeados": puntos_canjeados,
                             "direccion_negocio": config_negocio.get("direccion", ""),
                             "telefono_negocio": config_negocio.get("telefono", "")
                         }
@@ -1122,7 +1242,10 @@ if modulo == "🛒 Punto de Venta (POS)":
                             "forma_pago": forma_pago,
                             "cliente_nombre": nombre_cli_tk,
                             "cliente_telefono": cliente_pos.get("telefono") if cliente_pos else None,
-                            "negocio_nombre": config_negocio.get("nombre_negocio", "Mi Comercio")
+                            "negocio_nombre": config_negocio.get("nombre_negocio", "Mi Comercio"),
+                            "puntos_ganados": puntos_ganados,
+                            "puntos_balance": puntos_balance,
+                            "puntos_canjeados": puntos_canjeados
                         }
 
                         st.session_state.carrito = []
@@ -1475,11 +1598,13 @@ elif modulo == "📦 Productos e Inventario":
 
         if productos:
             if vista_elegida == "Tabla":
-                df_prods = pd.DataFrame(productos)[["codigo", "nombre", "categoria_nombre", "precio_costo", "margen_ganancia", "precio_venta", "stock_actual", "stock_minimo"]]
+                cols_tabla = ["codigo", "nombre", "categoria_nombre", "precio_costo", "margen_ganancia", "precio_venta", "stock_actual", "stock_minimo", "puntos_canje"]
+                df_prods = pd.DataFrame(productos)[cols_tabla]
                 df_prods.rename(columns={
                     "codigo": "Código", "nombre": "Producto", "categoria_nombre": "Categoría",
                     "precio_costo": "Costo ($)", "margen_ganancia": "Margen (%)", 
-                    "precio_venta": "Venta ($)", "stock_actual": "Stock", "stock_minimo": "Mínimo"
+                    "precio_venta": "Venta ($)", "stock_actual": "Stock", "stock_minimo": "Mínimo",
+                    "puntos_canje": "Puntos Canje"
                 }, inplace=True)
                 st.dataframe(df_prods, use_container_width=True, hide_index=True)
             elif vista_elegida == "Tarjetas":
@@ -1506,6 +1631,8 @@ elif modulo == "📦 Productos e Inventario":
                         precio_venta = float(p.get("precio_venta", 0))
                         stock_actual = float(p.get("stock_actual", 0))
                         stock_minimo = float(p.get("stock_minimo", 0))
+                        puntos_canje = int(p.get("puntos_canje") or 0)
+                        canje_html = f'<span style="background-color: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; border: 1px solid #fde68a; margin-left: 6px;">🎁 {puntos_canje} pts</span>' if puntos_canje > 0 else ''
 
                         # Nombre del producto
                         st.markdown(f"<div style='font-weight: 700; font-size: 1.05rem; color: #0f172a; margin-top: 6px; line-height: 1.3;'>{nombre_esc}</div>", unsafe_allow_html=True)
@@ -1515,6 +1642,7 @@ elif modulo == "📦 Productos e Inventario":
                             f"""<div style="margin: 4px 0 6px 0;">
                                 <span style="background-color: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; border: 1px solid #bfdbfe;">🏷️ {cat_esc}</span>
                                 <span style="color: #64748b; font-size: 0.72rem; margin-left: 6px;">Cod: {cod_esc}</span>
+                                {canje_html}
                             </div>""",
                             unsafe_allow_html=True
                         )
@@ -1677,6 +1805,12 @@ elif modulo == "📦 Productos e Inventario":
                         else f'<span class="inv-cp-stock inv-cp-stock-ok" title="Stock Normal (Mín: {stock_min:g})">📦 Stock: {stock_act:g}</span>'
                     )
 
+                    pts_canje_val = int(p.get("puntos_canje") or 0)
+                    canje_badge = (
+                        f'<span class="inv-cp-badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a;" title="Premio por Puntos">🎁 {pts_canje_val} pts</span>'
+                        if pts_canje_val > 0 else ''
+                    )
+
                     fila_html = (
                         f'<div class="inv-cp-row">'
                         f'{thumb_html}'
@@ -1684,6 +1818,7 @@ elif modulo == "📦 Productos e Inventario":
                         f'<span class="inv-cp-title" title="{nombre_esc}">{nombre_esc}</span>'
                         f'<span class="inv-cp-badge" title="Categoría">{cat_esc}</span>'
                         f'<span class="inv-cp-code" title="Código">#{cod_esc}</span>'
+                        f'{canje_badge}'
                         f'</div>'
                         f'<div class="inv-cp-end">'
                         f'{stock_badge}'
@@ -1757,6 +1892,15 @@ elif modulo == "📦 Productos e Inventario":
                     key=f"np_minimo_{vnp}"
                 )
 
+            puntos_canje_nuevo = st.number_input(
+                "Puntos para Canje",
+                min_value=0,
+                value=0,
+                step=10,
+                help="Indicar los puntos requeridos para canjear este producto. Dejar en 0 si no participa del programa de premios",
+                key=f"np_puntos_{vnp}"
+            )
+
         if st.button("💾 Guardar Producto", type="primary", key=f"np_guardar_{vnp}"):
             ruta_img_guardada = None
             try:
@@ -1773,7 +1917,8 @@ elif modulo == "📦 Productos e Inventario":
                     precio_venta_manual=precio_manual if usa_manual else None,
                     stock_actual=stock_inicial,
                     stock_minimo=stock_minimo_input,
-                    imagen_path=ruta_img_guardada
+                    imagen_path=ruta_img_guardada,
+                    puntos_canje=int(puntos_canje_nuevo)
                 )
                 st.session_state["flash_inventario"] = f"✅ ¡Producto '{nombre.strip()}' creado con éxito! (ID: {nuevo_id})"
                 st.session_state["nuevo_prod_version"] = vnp + 1
@@ -1807,7 +1952,8 @@ elif modulo == "📦 Productos e Inventario":
             # Las keys dependen de los datos vigentes: si cambian en la base (ej. una venta baja el stock),
             # los widgets se regeneran con el valor real y no se pisa el stock con uno viejo al guardar.
             kp = (f"{pid}_{prod_actual['stock_actual']:g}_{prod_actual['stock_minimo']:g}_"
-                  f"{prod_actual['precio_costo']:g}_{prod_actual['margen_ganancia']:g}_{prod_actual['precio_venta']:g}")
+                  f"{prod_actual['precio_costo']:g}_{prod_actual['margen_ganancia']:g}_{prod_actual['precio_venta']:g}_"
+                  f"{prod_actual.get('puntos_canje', 0)}")
 
             st.markdown("---")
 
@@ -1923,6 +2069,15 @@ elif modulo == "📦 Productos e Inventario":
                         key=f"edit_min_{kp}"
                     )
 
+                puntos_canje_edit = st.number_input(
+                    "Puntos para Canje",
+                    min_value=0,
+                    value=int(prod_actual.get("puntos_canje") or 0),
+                    step=10,
+                    help="Indicar los puntos requeridos para canjear este producto. Dejar en 0 si no participa del programa de premios",
+                    key=f"edit_pts_{kp}"
+                )
+
             st.write("")
             col_save_btn, col_del_btn = st.columns([1.5, 1], gap="medium")
 
@@ -1946,7 +2101,8 @@ elif modulo == "📦 Productos e Inventario":
                             stock_actual=stock_actual_edit,
                             stock_minimo=stock_minimo_edit,
                             imagen_path=ruta_img_final,
-                            eliminar_imagen=eliminar_foto
+                            eliminar_imagen=eliminar_foto,
+                            puntos_canje=int(puntos_canje_edit)
                         )
                         # Guardado OK: si la foto cambió o se quitó, borrar el archivo local anterior
                         if ruta_img_final or eliminar_foto:
