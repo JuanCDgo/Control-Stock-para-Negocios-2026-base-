@@ -15,6 +15,7 @@ import html
 import textwrap
 import urllib.parse
 import importlib
+import json
 import streamlit as st
 import altair as alt
 import pandas as pd
@@ -2667,6 +2668,9 @@ elif modulo == "⚙️ Configuración del Negocio":
     st.header("⚙️ Configuración del Comercio")
     st.caption("Administra tus datos bancarios para cobros con QR y la configuración de notificaciones por email.")
 
+    if "flash_config" in st.session_state:
+        st.success(st.session_state.pop("flash_config"))
+
     with st.form("form_config_negocio"):
         col_c1, col_c2 = st.columns(2, gap="large")
 
@@ -2777,6 +2781,96 @@ elif modulo == "⚙️ Configuración del Negocio":
                     st.rerun()
                 else:
                     st.error(f"❌ {msg}")
+
+    st.markdown("---")
+
+    # PANEL: COPIA DE SEGURIDAD Y RESTAURACIÓN (SNAPSHOT)
+    st.subheader("💾 Respaldo y Restauración de Base de Datos")
+    st.caption("Crea una instantánea completa (Snapshot JSON) de tu negocio o restaura tus datos.")
+
+    with st.container(border=True):
+        col_bk1, col_bk2 = st.columns([1, 1], gap="large")
+
+        with col_bk1:
+            st.markdown("#### 📦 Descargar Copia de Seguridad")
+            st.markdown(
+                "Exporta todos los registros de las tablas principales (**categorías, productos, clientes, ventas, detalles y movimientos de caja**) en un archivo JSON descargable."
+            )
+            comercio_id_actual = usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
+            backup_json_str = models.generar_backup_completo(comercio_id=comercio_id_actual)
+            nombre_archivo_backup = f"backup_sistema_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+            st.download_button(
+                label="📦 Descargar Copia de Seguridad Completa (JSON)",
+                data=backup_json_str,
+                file_name=nombre_archivo_backup,
+                mime="application/json",
+                use_container_width=True,
+                help="Haz clic para descargar la copia de seguridad de la base de datos."
+            )
+
+        with col_bk2:
+            st.markdown("#### 📥 Restaurar desde Copia de Seguridad")
+            st.caption("Recupera tus datos cargando un archivo de respaldo previo.")
+
+            archivo_respaldo = st.file_uploader(
+                "Seleccionar archivo .json de respaldo",
+                type=["json"],
+                key="uploader_backup_json"
+            )
+
+            if archivo_respaldo is not None:
+                try:
+                    contenido_json = json.loads(archivo_respaldo.getvalue().decode("utf-8"))
+                    tablas_preview = contenido_json.get("tablas") or contenido_json.get("datos") or contenido_json
+
+                    fecha_bk = contenido_json.get("timestamp", "No informada")
+                    try:
+                        dt_bk = pd.to_datetime(fecha_bk, utc=True).tz_convert(ZONA_HORARIA)
+                        fecha_bk_fmt = dt_bk.strftime("%d/%m/%Y %H:%M:%S")
+                    except Exception:
+                        fecha_bk_fmt = str(fecha_bk)
+
+                    cant_prods = len(tablas_preview.get("productos", [])) if isinstance(tablas_preview, dict) else 0
+                    cant_clis = len(tablas_preview.get("clientes", [])) if isinstance(tablas_preview, dict) else 0
+
+                    st.info(
+                        f"📅 **Fecha del Backup:** {fecha_bk_fmt}  \n"
+                        f"📦 **Productos:** {cant_prods} | 👥 **Clientes:** {cant_clis}"
+                    )
+
+                    chk_restaurar = st.checkbox(
+                        "⚠️ Confirmo que deseo restaurar la base de datos con esta copia",
+                        key="chk_confirmar_restauracion"
+                    )
+
+                    btn_restaurar = st.button(
+                        "🔄 Restaurar Base de Datos",
+                        type="primary",
+                        disabled=not chk_restaurar,
+                        use_container_width=True,
+                        key="btn_restaurar_backup"
+                    )
+
+                    if btn_restaurar and chk_restaurar:
+                        with st.spinner("Restaurando base de datos en Supabase..."):
+                            comercio_id_actual = usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
+                            res_rest = models.restaurar_backup_completo(contenido_json, comercio_id=comercio_id_actual)
+
+                        if res_rest.get("ok"):
+                            partes = [f"{v} {k}" for k, v in res_rest.get("resumen", {}).items() if v > 0]
+                            st.session_state["flash_config"] = (
+                                f"🎉 ¡Base de datos restaurada con éxito! Se restauraron: {', '.join(partes)}. "
+                                "Por favor refrescá la aplicación (recargá la página) para actualizar la vista de todos los módulos."
+                            )
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Error al restaurar la copia de seguridad: {res_rest.get('error')}")
+
+                except json.JSONDecodeError:
+                    st.error("❌ El archivo seleccionado no contiene un formato JSON válido.")
+                except Exception as e:
+                    st.error(f"❌ Error al procesar el archivo: {e}")
 
     st.markdown("---")
 

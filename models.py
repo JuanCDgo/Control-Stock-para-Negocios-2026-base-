@@ -1428,3 +1428,176 @@ def importar_productos_masivo(df, comercio_id=COMERCIO_ID_DEFAULT):
     }
 
 
+# ==========================================
+# 5. COPIA DE SEGURIDAD Y RESTAURACIÓN (BACKUP / SNAPSHOT)
+# ==========================================
+
+def generar_backup_completo(comercio_id=COMERCIO_ID_DEFAULT):
+    """
+    Consulta y extrae todos los registros de las tablas principales de Supabase:
+    'categorias', 'productos', 'clientes', 'ventas', 'detalle_ventas', 'movimientos_caja',
+    así como 'movimientos_cuenta'.
+    Retorna un string JSON formateado con timestamp y los datos de cada tabla.
+    """
+    import json
+    from datetime import datetime
+    supabase = get_connection()
+
+    # 1. Categorías
+    res_cats = supabase.table("categorias").select("*").eq("comercio_id", comercio_id).order("id").execute()
+    categorias = res_cats.data or []
+
+    # 2. Clientes
+    res_cli = supabase.table("clientes").select("*").eq("comercio_id", comercio_id).order("id").execute()
+    clientes = res_cli.data or []
+
+    # 3. Productos
+    res_prods = supabase.table("productos").select("*").eq("comercio_id", comercio_id).order("id").execute()
+    productos = res_prods.data or []
+
+    # 4. Ventas
+    res_ventas = supabase.table("ventas").select("*").eq("comercio_id", comercio_id).order("id").execute()
+    ventas = res_ventas.data or []
+
+    # 5. Detalle de Ventas
+    venta_ids = [v["id"] for v in ventas]
+    detalle_ventas = []
+    if venta_ids:
+        for i in range(0, len(venta_ids), 200):
+            lote_ids = venta_ids[i:i + 200]
+            res_det = supabase.table("detalle_ventas").select("*").in_("venta_id", lote_ids).order("id").execute()
+            if res_det.data:
+                detalle_ventas.extend(res_det.data)
+
+    # 6. Movimientos de Caja
+    res_caja = supabase.table("movimientos_caja").select("*").eq("comercio_id", comercio_id).order("id").execute()
+    movimientos_caja = res_caja.data or []
+
+    # 7. Movimientos de Cuenta Corriente (si existen)
+    try:
+        res_cta = supabase.table("movimientos_cuenta").select("*").eq("comercio_id", comercio_id).order("id").execute()
+        movimientos_cuenta = res_cta.data or []
+    except Exception:
+        movimientos_cuenta = []
+
+    backup_dict = {
+        "version": "1.0",
+        "timestamp": datetime.now().isoformat(),
+        "comercio_id": comercio_id,
+        "tablas": {
+            "categorias": categorias,
+            "clientes": clientes,
+            "productos": productos,
+            "ventas": ventas,
+            "detalle_ventas": detalle_ventas,
+            "movimientos_caja": movimientos_caja,
+            "movimientos_cuenta": movimientos_cuenta,
+        }
+    }
+
+    return json.dumps(backup_dict, indent=2, default=str, ensure_ascii=False)
+
+
+@clears_cache
+def restaurar_backup_completo(backup_data, comercio_id=COMERCIO_ID_DEFAULT):
+    """
+    Restaura los registros en Supabase usando upsert por ID en orden relacional
+    (primero 'categorias', luego 'clientes', 'productos', 'ventas', 'detalle_ventas', 'movimientos_caja')
+    para respetar claves foráneas.
+    Limpia la caché global con st.cache_data.clear().
+    Retorna un resumen del proceso (dict con 'ok', 'resumen', 'mensaje' o 'error').
+    """
+    import json
+    if isinstance(backup_data, (str, bytes)):
+        try:
+            backup_data = json.loads(backup_data)
+        except Exception as e:
+            return {"ok": False, "error": f"Formato de archivo inválido (JSON no válido): {e}"}
+
+    if not isinstance(backup_data, dict):
+        return {"ok": False, "error": "El contenido del respaldo no es un objeto JSON válido."}
+
+    tablas_data = backup_data.get("tablas") or backup_data.get("datos") or backup_data
+    if not isinstance(tablas_data, dict):
+        return {"ok": False, "error": "No se encontraron datos de tablas en el archivo de respaldo."}
+
+    supabase = get_connection()
+    resumen = {}
+
+    # Orden relacional estricto para respetar foreign keys
+    orden_tablas = [
+        "categorias",
+        "clientes",
+        "productos",
+        "ventas",
+        "detalle_ventas",
+        "movimientos_caja",
+        "movimientos_cuenta",
+    ]
+
+    try:
+        for tabla in orden_tablas:
+            filas = tablas_data.get(tabla, [])
+            if not filas or not isinstance(filas, list):
+                resumen[tabla] = 0
+                continue
+
+            filas_a_insertar = []
+            for f in filas:
+                if not isinstance(f, dict):
+                    continue
+                fila_limpia = dict(f)
+                if tabla != "detalle_ventas":
+                    fila_limpia["comercio_id"] = comercio_id
+                filas_a_insertar.append(fila_limpia)
+
+            if not filas_a_insertar:
+                resumen[tabla] = 0
+                continue
+
+            total_tabla = 0
+            batch_size = 50
+            for i in range(0, len(filas_a_insertar), batch_size):
+                lote = filas_a_insertar[i:i + batch_size]
+                try:
+                    res = supabase.table(tabla).upsert(lote).execute()
+                    total_tabla += len(res.data or lote)
+                except Exception as e:
+                    if tabla == "productos" and ("puntos_canje" in str(e).lower() or "PGRST204" in str(e)):
+                        for item in lote:
+                            item.pop("puntos_canje", None)
+                        res = supabase.table(tabla).upsert(lote).execute()
+                        total_tabla += len(res.data or lote)
+                    elif tabla == "movimientos_caja" and "428C9" in str(e):
+                        # Columna id definida como GENERATED ALWAYS en PostgreSQL
+                        existentes = supabase.table("movimientos_caja").select("id, fecha, monto, concepto").eq("comercio_id", comercio_id).execute().data or []
+                        existentes_keys = {(str(ex.get("fecha")), float(ex.get("monto") or 0), str(ex.get("concepto", "")).strip()) for ex in existentes}
+                        for item in lote:
+                            item_copia = dict(item)
+                            item_copia.pop("id", None)
+                            k = (str(item.get("fecha")), float(item.get("monto") or 0), str(item.get("concepto", "")).strip())
+                            if k not in existentes_keys:
+                                supabase.table("movimientos_caja").insert(item_copia).execute()
+                                existentes_keys.add(k)
+                            total_tabla += 1
+                    else:
+                        raise Exception(f"Error al restaurar tabla '{tabla}' (lote {i//batch_size + 1}): {e}")
+
+            resumen[tabla] = total_tabla
+
+        st.cache_data.clear()
+        return {
+            "ok": True,
+            "resumen": resumen,
+            "mensaje": "Restauración completada con éxito."
+        }
+    except Exception as e:
+        st.cache_data.clear()
+        return {
+            "ok": False,
+            "error": str(e),
+            "resumen": resumen
+        }
+
+
+
