@@ -11,6 +11,7 @@ Organizado en 6 módulos principales:
 import os
 import io
 import re
+import html
 import urllib.parse
 import importlib
 import streamlit as st
@@ -187,6 +188,9 @@ if "carrito" not in st.session_state:
 if "pos_vista_ficha" not in st.session_state:
     st.session_state.pos_vista_ficha = "Compacta"
 
+if "inv_vista_ficha" not in st.session_state:
+    st.session_state.inv_vista_ficha = "Compacta"
+
 if "pos_cant_val" not in st.session_state:
     st.session_state.pos_cant_val = 1.0
 
@@ -271,6 +275,25 @@ def obtener_ruta_imagen_absoluta(ruta_relativa):
         return ruta_relativa
     ruta_abs = os.path.join(BASE_DIR, ruta_relativa)
     return ruta_abs if os.path.exists(ruta_abs) else None
+
+
+def obtener_src_imagen_html(ruta_relativa):
+    ruta_abs = obtener_ruta_imagen_absoluta(ruta_relativa)
+    if not ruta_abs:
+        return None
+    if str(ruta_abs).lower().startswith(("http://", "https://")):
+        return ruta_abs
+    if os.path.exists(ruta_abs):
+        try:
+            import base64
+            with open(ruta_abs, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            ext = os.path.splitext(ruta_abs)[1].lower().replace(".", "")
+            mime = "jpeg" if ext in ("jpg", "jpeg") else ext
+            return f"data:image/{mime};base64,{b64}"
+        except Exception:
+            return None
+    return None
 
 
 def borrar_archivo_imagen_local(ruta: Optional[str]) -> None:
@@ -1350,61 +1373,219 @@ elif modulo == "📦 Productos e Inventario":
                 }, inplace=True)
                 st.dataframe(df_prods, use_container_width=True, hide_index=True)
             elif vista_elegida == "Tarjetas":
-                # Mostrar en cuadrícula de 3 o 4 columnas
+                # Grilla de 3 columnas (st.columns(3))
                 columnas = st.columns(3)
                 for i, p in enumerate(productos):
                     with columnas[i % 3].container(border=True):
-                        img_prod = obtener_ruta_imagen_absoluta(p.get("imagen_path"))
+                        # Imagen destacada arriba (tamaño mediano/visible)
+                        img_prod = obtener_ruta_imagen_absoluta(p.get("imagen_path") or p.get("imagen_url"))
                         if img_prod:
                             st.image(img_prod, use_container_width=True)
                         else:
                             st.markdown(
-                                """<div style="border:1px dashed #ccc; border-radius:6px; padding:20px 0; text-align:center; color:#999; margin-bottom:10px;">
-                                📷<br><small>Sin foto</small></div>""",
+                                """<div style="height: 140px; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 8px;">
+                                    <span style="font-size: 2.2rem;">📷</span>
+                                    <small style="font-size: 0.75rem; font-weight: 500; margin-top: 4px;">Sin foto</small>
+                                </div>""",
                                 unsafe_allow_html=True
                             )
-                        st.markdown(f"**{p['nombre']}**")
-                        st.caption(f"Cod: {p['codigo']} | {p['categoria_nombre']}")
-                        st.markdown(f"💰 Venta: **${p['precio_venta']:,.2f}**")
-                        if p["stock_actual"] <= p["stock_minimo"]:
-                            st.error(f"🚨 Stock: **{p['stock_actual']}** (Mín: {p['stock_minimo']})")
+
+                        nombre_esc = html.escape(str(p.get("nombre", "")))
+                        cat_esc = html.escape(str(p.get("categoria_nombre") or p.get("categoria") or "General"))
+                        cod_esc = html.escape(str(p.get("codigo", "S/C")))
+                        precio_venta = float(p.get("precio_venta", 0))
+                        stock_actual = float(p.get("stock_actual", 0))
+                        stock_minimo = float(p.get("stock_minimo", 0))
+
+                        # Nombre del producto
+                        st.markdown(f"<div style='font-weight: 700; font-size: 1.05rem; color: #0f172a; margin-top: 6px; line-height: 1.3;'>{nombre_esc}</div>", unsafe_allow_html=True)
+
+                        # Badge de categoría y código
+                        st.markdown(
+                            f"""<div style="margin: 4px 0 6px 0;">
+                                <span style="background-color: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; border: 1px solid #bfdbfe;">🏷️ {cat_esc}</span>
+                                <span style="color: #64748b; font-size: 0.72rem; margin-left: 6px;">Cod: {cod_esc}</span>
+                            </div>""",
+                            unsafe_allow_html=True
+                        )
+
+                        # Precio en grande
+                        st.markdown(
+                            f"""<div style="font-size: 1.45rem; font-weight: 800; color: #0f172a; margin: 4px 0;">
+                                ${precio_venta:,.2f}
+                            </div>""",
+                            unsafe_allow_html=True
+                        )
+
+                        # Stock
+                        if stock_actual <= stock_minimo:
+                            st.markdown(
+                                f"""<div style="background-color: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
+                                    🚨 Stock: {stock_actual:g} (Mín: {stock_minimo:g})
+                                </div>""",
+                                unsafe_allow_html=True
+                            )
                         else:
-                            st.success(f"📦 Stock: **{p['stock_actual']}** (Mín: {p['stock_minimo']})")
+                            st.markdown(
+                                f"""<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
+                                    📦 Stock: {stock_actual:g} (Mín: {stock_minimo:g})
+                                </div>""",
+                                unsafe_allow_html=True
+                            )
             else: # Compacta
+                rows_html = []
                 for p in productos:
-                    with st.container(border=True):
-                        col_p_img, col_p_det, col_p_precios, col_p_stock = st.columns([1, 2.5, 2, 2])
-    
-                        with col_p_img:
-                            img_prod = obtener_ruta_imagen_absoluta(p.get("imagen_path"))
-                            if img_prod:
-                                st.image(img_prod, use_container_width=True)
-                            else:
-                                st.markdown(
-                                    """<div style="border:1px dashed #ccc; border-radius:6px; padding:20px 0; text-align:center; color:#999;">
-                                    📷<br><small>Sin foto</small></div>""",
-                                    unsafe_allow_html=True
-                                )
-    
-                        with col_p_det:
-                            st.markdown(f"### {p['nombre']}")
-                            st.markdown(f"**Código / Barra:** `{p['codigo']}`")
-                            st.caption(f"Categoría: **{p['categoria_nombre']}**")
-    
-                        with col_p_precios:
-                            st.markdown(f"**Costo:** ${p['precio_costo']:,.2f}")
-                            st.markdown(f"**Margen:** {p['margen_ganancia']:.1f}%")
-                            tipo_precio = "Manual" if p["usa_precio_manual"] == 1 else "Auto"
-                            st.markdown(f"**Venta:** :green[**${p['precio_venta']:,.2f}**] *({tipo_precio})*")
-    
-                        with col_p_stock:
-                            st.markdown(f"**Stock Mínimo:** {p['stock_minimo']} unid.")
-                            if p["stock_actual"] <= p["stock_minimo"]:
-                                st.error(f"🚨 **Stock:** **{p['stock_actual']}** unidades")
-                                st.caption("⚠️ Requiere reposición")
-                            else:
-                                st.success(f"📦 **Stock:** **{p['stock_actual']}** unidades")
-                                st.caption("Nivel adecuado")
+                    img_src = obtener_src_imagen_html(p.get("imagen_path") or p.get("imagen_url"))
+                    nombre_esc = html.escape(str(p.get("nombre", "")))
+                    cod_esc = html.escape(str(p.get("codigo", "")))
+                    cat_esc = html.escape(str(p.get("categoria_nombre") or p.get("categoria") or "General"))
+                    precio_val = float(p.get("precio_venta", 0))
+                    stock_act = float(p.get("stock_actual", 0))
+                    stock_min = float(p.get("stock_minimo", 0))
+                    es_critico = stock_act <= stock_min
+
+                    if img_src:
+                        thumb_html = f'<div class="inv-cp-thumb"><img src="{img_src}" alt="" loading="lazy" /></div>'
+                    else:
+                        thumb_html = '<div class="inv-cp-thumb"><span style="font-size: 1.15rem;">📦</span></div>'
+
+                    stock_badge = (
+                        f'<span class="inv-cp-stock inv-cp-stock-critico" title="Stock Crítico (Mín: {stock_min:g})">🚨 Stock: {stock_act:g}</span>'
+                        if es_critico
+                        else f'<span class="inv-cp-stock inv-cp-stock-ok" title="Stock Normal (Mín: {stock_min:g})">📦 Stock: {stock_act:g}</span>'
+                    )
+
+                    rows_html.append(f"""
+                    <div class="inv-cp-row">
+                        {thumb_html}
+                        <div class="inv-cp-info">
+                            <span class="inv-cp-title" title="{nombre_esc}">{nombre_esc}</span>
+                            <span class="inv-cp-badge" title="Categoría">{cat_esc}</span>
+                            <span class="inv-cp-code" title="Código">#{cod_esc}</span>
+                        </div>
+                        <div class="inv-cp-end">
+                            {stock_badge}
+                            <span class="inv-cp-price">${precio_val:,.2f}</span>
+                        </div>
+                    </div>
+                    """)
+
+                html_completo = f"""
+                <style>
+                .inv-cp-list {{
+                    display: flex;
+                    flex-direction: column;
+                    gap: 3px;
+                    width: 100%;
+                    margin-top: 6px;
+                }}
+                .inv-cp-row {{
+                    display: flex;
+                    align-items: center;
+                    background-color: #ffffff;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    padding: 3px 12px;
+                    min-height: 42px;
+                    box-sizing: border-box;
+                    transition: all 0.15s ease-in-out;
+                    gap: 12px;
+                }}
+                .inv-cp-row:hover {{
+                    background-color: #f8fafc;
+                    border-color: #cbd5e1;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+                }}
+                .inv-cp-thumb {{
+                    width: 36px;
+                    height: 36px;
+                    min-width: 36px;
+                    max-width: 45px;
+                    border-radius: 5px;
+                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background-color: #f1f5f9;
+                    flex-shrink: 0;
+                    border: 1px solid #e2e8f0;
+                }}
+                .inv-cp-thumb img {{
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }}
+                .inv-cp-info {{
+                    flex: 1;
+                    min-width: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    overflow: hidden;
+                }}
+                .inv-cp-title {{
+                    font-weight: 600;
+                    font-size: 0.92rem;
+                    color: #0f172a;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }}
+                .inv-cp-badge {{
+                    background-color: #eff6ff;
+                    color: #1d4ed8;
+                    font-size: 0.72rem;
+                    font-weight: 600;
+                    padding: 1px 7px;
+                    border-radius: 9999px;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                    border: 1px solid #dbeafe;
+                }}
+                .inv-cp-code {{
+                    color: #64748b;
+                    font-size: 0.75rem;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }}
+                .inv-cp-end {{
+                    display: flex;
+                    align-items: center;
+                    gap: 16px;
+                    flex-shrink: 0;
+                    margin-left: auto;
+                }}
+                .inv-cp-stock {{
+                    font-size: 0.78rem;
+                    font-weight: 600;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    white-space: nowrap;
+                }}
+                .inv-cp-stock-ok {{
+                    background-color: #f0fdf4;
+                    color: #166534;
+                    border: 1px solid #bbf7d0;
+                }}
+                .inv-cp-stock-critico {{
+                    background-color: #fef2f2;
+                    color: #b91c1c;
+                    border: 1px solid #fecaca;
+                }}
+                .inv-cp-price {{
+                    font-size: 1.02rem;
+                    font-weight: 700;
+                    color: #0f172a;
+                    white-space: nowrap;
+                    min-width: 90px;
+                    text-align: right;
+                }}
+                </style>
+                <div class="inv-cp-list">
+                    {''.join(rows_html)}
+                </div>
+                """
+                st.markdown(html_completo, unsafe_allow_html=True)
         else:
             st.info("No se encontraron productos coincidentes.")
 
