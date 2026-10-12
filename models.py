@@ -146,6 +146,27 @@ def obtener_producto_por_codigo(codigo, comercio_id=COMERCIO_ID_DEFAULT):
         return None
     return _formatear_producto(res.data[0])
 
+@st.cache_data(ttl=120)
+def get_producto_por_id(producto_id, comercio_id=COMERCIO_ID_DEFAULT):
+    """Devuelve un producto individual por ID incluyendo categorias y puntos_canje."""
+    supabase = get_connection()
+    res = (
+        supabase.table("productos")
+        .select("*, categorias(nombre)")
+        .eq("comercio_id", comercio_id)
+        .eq("id", producto_id)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        return None
+    return _formatear_producto(res.data[0])
+
+@st.cache_data(ttl=120)
+def obtener_producto_por_id(producto_id, comercio_id=COMERCIO_ID_DEFAULT):
+    """Alias para get_producto_por_id."""
+    return get_producto_por_id(producto_id, comercio_id=comercio_id)
+
 @clears_cache
 def save_producto(datos, comercio_id=COMERCIO_ID_DEFAULT):
     """Guarda o actualiza un producto en Supabase."""
@@ -158,28 +179,26 @@ def save_producto(datos, comercio_id=COMERCIO_ID_DEFAULT):
         "precio_costo": datos["precio_costo"],
         "margen_ganancia": datos["margen_ganancia"],
         "precio_venta": datos["precio_venta"],
-        "usa_precio_manual": datos["usa_precio_manual"],
+        "usa_precio_manual": datos.get("usa_precio_manual", False),
         "stock_actual": datos["stock_actual"],
         "stock_minimo": datos["stock_minimo"],
         "imagen_url": datos.get("imagen_url", ""),
         "puntos_canje": int(datos.get("puntos_canje") or 0),
     }
 
-    # Si viene con ID, actualiza; si no, inserta uno nuevo
     try:
         if datos.get("id"):
             res = supabase.table("productos").update(payload).eq("id", datos["id"]).execute()
         else:
             res = supabase.table("productos").insert(payload).execute()
     except Exception as e:
-        if "puntos_canje" in str(e).lower():
-            payload.pop("puntos_canje", None)
-            if datos.get("id"):
-                res = supabase.table("productos").update(payload).eq("id", datos["id"]).execute()
-            else:
-                res = supabase.table("productos").insert(payload).execute()
-        else:
-            raise e
+        if "puntos_canje" in str(e).lower() or "PGRST204" in str(e):
+            raise BusinessLogicError(
+                "La base de datos en Supabase no tiene la columna 'puntos_canje' en la tabla 'productos'. "
+                "Por favor ejecutá el script 'sql/canje_premios.sql' en el SQL Editor de Supabase."
+            )
+        raise e
+    st.cache_data.clear()
     return res.data
 
 @clears_cache
@@ -280,14 +299,16 @@ def crear_producto(codigo, nombre, categoria_id, precio_costo, margen_ganancia, 
     try:
         res = supabase.table("productos").insert(payload).execute()
     except Exception as e:
-        if "puntos_canje" in str(e).lower():
-            payload.pop("puntos_canje", None)
-            res = supabase.table("productos").insert(payload).execute()
-        else:
-            raise e
+        if "puntos_canje" in str(e).lower() or "PGRST204" in str(e):
+            raise BusinessLogicError(
+                "La base de datos en Supabase no tiene la columna 'puntos_canje' en la tabla 'productos'. "
+                "Por favor ejecutá el script 'sql/canje_premios.sql' en el SQL Editor de Supabase."
+            )
+        raise e
 
     if not res.data:
         raise Exception("Supabase no confirmó la creación del producto (revisá los permisos / RLS de la tabla productos).")
+    st.cache_data.clear()
     return res.data[0]["id"]
 
 
@@ -326,14 +347,16 @@ def actualizar_producto(producto_id, codigo, nombre, categoria_id, precio_costo,
     try:
         res = supabase.table("productos").update(payload).eq("id", producto_id).eq("comercio_id", comercio_id).execute()
     except Exception as e:
-        if "puntos_canje" in str(e).lower():
-            payload.pop("puntos_canje", None)
-            res = supabase.table("productos").update(payload).eq("id", producto_id).eq("comercio_id", comercio_id).execute()
-        else:
-            raise e
+        if "puntos_canje" in str(e).lower() or "PGRST204" in str(e):
+            raise BusinessLogicError(
+                "La base de datos en Supabase no tiene la columna 'puntos_canje' en la tabla 'productos'. "
+                "Por favor ejecutá el script 'sql/canje_premios.sql' en el SQL Editor de Supabase."
+            )
+        raise e
 
     if not res.data:
         raise BusinessLogicError("No se pudo actualizar: el producto no existe o no hay permiso de escritura (RLS).")
+    st.cache_data.clear()
     return True
 
 

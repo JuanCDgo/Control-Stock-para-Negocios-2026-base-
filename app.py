@@ -1949,11 +1949,13 @@ elif modulo == "📦 Productos e Inventario":
             )
             prod_actual = dict_opciones_edit[prod_edit_label]
             pid = prod_actual["id"]
+            prod = models.get_producto_por_id(pid) or prod_actual
+            prod_actual = prod
             # Las keys dependen de los datos vigentes: si cambian en la base (ej. una venta baja el stock),
             # los widgets se regeneran con el valor real y no se pisa el stock con uno viejo al guardar.
-            kp = (f"{pid}_{prod_actual['stock_actual']:g}_{prod_actual['stock_minimo']:g}_"
-                  f"{prod_actual['precio_costo']:g}_{prod_actual['margen_ganancia']:g}_{prod_actual['precio_venta']:g}_"
-                  f"{prod_actual.get('puntos_canje', 0)}")
+            kp = (f"{pid}_{prod['stock_actual']:g}_{prod['stock_minimo']:g}_"
+                  f"{prod['precio_costo']:g}_{prod['margen_ganancia']:g}_{prod['precio_venta']:g}_"
+                  f"{int(prod.get('puntos_canje') or 0)}")
 
             st.markdown("---")
 
@@ -2072,7 +2074,7 @@ elif modulo == "📦 Productos e Inventario":
                 puntos_canje_edit = st.number_input(
                     "Puntos para Canje",
                     min_value=0,
-                    value=int(prod_actual.get("puntos_canje") or 0),
+                    value=int(prod.get("puntos_canje") or 0),
                     step=10,
                     help="Indicar los puntos requeridos para canjear este producto. Dejar en 0 si no participa del programa de premios",
                     key=f"edit_pts_{kp}"
@@ -2106,7 +2108,8 @@ elif modulo == "📦 Productos e Inventario":
                         )
                         # Guardado OK: si la foto cambió o se quitó, borrar el archivo local anterior
                         if ruta_img_final or eliminar_foto:
-                            borrar_archivo_imagen_local(prod_actual.get("imagen_path"))
+                            borrar_archivo_imagen_local(prod.get("imagen_path"))
+                        st.cache_data.clear()
                         st.session_state["flash_inventario"] = f"✅ ¡Producto '{nombre_edit.strip()}' actualizado con éxito!"
                         st.rerun()
                     except models.BusinessLogicError as e:
