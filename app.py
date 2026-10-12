@@ -12,6 +12,7 @@ import os
 import io
 import re
 import html
+import textwrap
 import urllib.parse
 import importlib
 import streamlit as st
@@ -113,6 +114,115 @@ st.markdown("""
         border-radius: 8px !important;
         overflow: hidden !important;
         border: 1px solid #E2E8F0 !important;
+    }
+
+    /* Vista Compacta de Productos / Inventario */
+    [data-testid="stHtml"] {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .inv-cp-row {
+        display: flex;
+        align-items: center;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 3px 12px;
+        min-height: 42px;
+        box-sizing: border-box;
+        transition: all 0.15s ease-in-out;
+        gap: 12px;
+        margin-bottom: 3px;
+        width: 100%;
+    }
+    .inv-cp-row:hover {
+        background-color: #f8fafc;
+        border-color: #cbd5e1;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .inv-cp-thumb {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        max-width: 45px;
+        border-radius: 5px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f1f5f9;
+        flex-shrink: 0;
+        border: 1px solid #e2e8f0;
+    }
+    .inv-cp-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .inv-cp-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow: hidden;
+    }
+    .inv-cp-title {
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .inv-cp-badge {
+        background-color: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 1px 7px;
+        border-radius: 9999px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        border: 1px solid #dbeafe;
+    }
+    .inv-cp-code {
+        color: #64748b;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .inv-cp-end {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-shrink: 0;
+        margin-left: auto;
+    }
+    .inv-cp-stock {
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+        white-space: nowrap;
+    }
+    .inv-cp-stock-ok {
+        background-color: #f0fdf4;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+    .inv-cp-stock-critico {
+        background-color: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    .inv-cp-price {
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: #0f172a;
+        white-space: nowrap;
+        min-width: 90px;
+        text-align: right;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1433,7 +1543,119 @@ elif modulo == "📦 Productos e Inventario":
                                 unsafe_allow_html=True
                             )
             else: # Compacta
-                rows_html = []
+                css_compacto = textwrap.dedent("""
+                <style>
+                [data-testid="stHtml"] {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .inv-cp-row {
+                    display: flex;
+                    align-items: center;
+                    background-color: #ffffff;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    padding: 3px 12px;
+                    min-height: 42px;
+                    box-sizing: border-box;
+                    transition: all 0.15s ease-in-out;
+                    gap: 12px;
+                    margin-bottom: 3px;
+                    width: 100%;
+                }
+                .inv-cp-row:hover {
+                    background-color: #f8fafc;
+                    border-color: #cbd5e1;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+                }
+                .inv-cp-thumb {
+                    width: 36px;
+                    height: 36px;
+                    min-width: 36px;
+                    max-width: 45px;
+                    border-radius: 5px;
+                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background-color: #f1f5f9;
+                    flex-shrink: 0;
+                    border: 1px solid #e2e8f0;
+                }
+                .inv-cp-thumb img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                .inv-cp-info {
+                    flex: 1;
+                    min-width: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    overflow: hidden;
+                }
+                .inv-cp-title {
+                    font-weight: 600;
+                    font-size: 0.92rem;
+                    color: #0f172a;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                .inv-cp-badge {
+                    background-color: #eff6ff;
+                    color: #1d4ed8;
+                    font-size: 0.72rem;
+                    font-weight: 600;
+                    padding: 1px 7px;
+                    border-radius: 9999px;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                    border: 1px solid #dbeafe;
+                }
+                .inv-cp-code {
+                    color: #64748b;
+                    font-size: 0.75rem;
+                    white-space: nowrap;
+                    flex-shrink: 0;
+                }
+                .inv-cp-end {
+                    display: flex;
+                    align-items: center;
+                    gap: 16px;
+                    flex-shrink: 0;
+                    margin-left: auto;
+                }
+                .inv-cp-stock {
+                    font-size: 0.78rem;
+                    font-weight: 600;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    white-space: nowrap;
+                }
+                .inv-cp-stock-ok {
+                    background-color: #f0fdf4;
+                    color: #166534;
+                    border: 1px solid #bbf7d0;
+                }
+                .inv-cp-stock-critico {
+                    background-color: #fef2f2;
+                    color: #b91c1c;
+                    border: 1px solid #fecaca;
+                }
+                .inv-cp-price {
+                    font-size: 1.02rem;
+                    font-weight: 700;
+                    color: #0f172a;
+                    white-space: nowrap;
+                    min-width: 90px;
+                    text-align: right;
+                }
+                </style>
+                """).strip()
+                st.markdown(css_compacto, unsafe_allow_html=True)
+
                 for p in productos:
                     img_src = obtener_src_imagen_html(p.get("imagen_path") or p.get("imagen_url"))
                     nombre_esc = html.escape(str(p.get("nombre", "")))
@@ -1455,137 +1677,25 @@ elif modulo == "📦 Productos e Inventario":
                         else f'<span class="inv-cp-stock inv-cp-stock-ok" title="Stock Normal (Mín: {stock_min:g})">📦 Stock: {stock_act:g}</span>'
                     )
 
-                    rows_html.append(f"""
-                    <div class="inv-cp-row">
-                        {thumb_html}
-                        <div class="inv-cp-info">
-                            <span class="inv-cp-title" title="{nombre_esc}">{nombre_esc}</span>
-                            <span class="inv-cp-badge" title="Categoría">{cat_esc}</span>
-                            <span class="inv-cp-code" title="Código">#{cod_esc}</span>
-                        </div>
-                        <div class="inv-cp-end">
-                            {stock_badge}
-                            <span class="inv-cp-price">${precio_val:,.2f}</span>
-                        </div>
-                    </div>
-                    """)
+                    fila_html = (
+                        f'<div class="inv-cp-row">'
+                        f'{thumb_html}'
+                        f'<div class="inv-cp-info">'
+                        f'<span class="inv-cp-title" title="{nombre_esc}">{nombre_esc}</span>'
+                        f'<span class="inv-cp-badge" title="Categoría">{cat_esc}</span>'
+                        f'<span class="inv-cp-code" title="Código">#{cod_esc}</span>'
+                        f'</div>'
+                        f'<div class="inv-cp-end">'
+                        f'{stock_badge}'
+                        f'<span class="inv-cp-price">${precio_val:,.2f}</span>'
+                        f'</div>'
+                        f'</div>'
+                    )
 
-                html_completo = f"""
-                <style>
-                .inv-cp-list {{
-                    display: flex;
-                    flex-direction: column;
-                    gap: 3px;
-                    width: 100%;
-                    margin-top: 6px;
-                }}
-                .inv-cp-row {{
-                    display: flex;
-                    align-items: center;
-                    background-color: #ffffff;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 6px;
-                    padding: 3px 12px;
-                    min-height: 42px;
-                    box-sizing: border-box;
-                    transition: all 0.15s ease-in-out;
-                    gap: 12px;
-                }}
-                .inv-cp-row:hover {{
-                    background-color: #f8fafc;
-                    border-color: #cbd5e1;
-                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-                }}
-                .inv-cp-thumb {{
-                    width: 36px;
-                    height: 36px;
-                    min-width: 36px;
-                    max-width: 45px;
-                    border-radius: 5px;
-                    overflow: hidden;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background-color: #f1f5f9;
-                    flex-shrink: 0;
-                    border: 1px solid #e2e8f0;
-                }}
-                .inv-cp-thumb img {{
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                }}
-                .inv-cp-info {{
-                    flex: 1;
-                    min-width: 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    overflow: hidden;
-                }}
-                .inv-cp-title {{
-                    font-weight: 600;
-                    font-size: 0.92rem;
-                    color: #0f172a;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                }}
-                .inv-cp-badge {{
-                    background-color: #eff6ff;
-                    color: #1d4ed8;
-                    font-size: 0.72rem;
-                    font-weight: 600;
-                    padding: 1px 7px;
-                    border-radius: 9999px;
-                    white-space: nowrap;
-                    flex-shrink: 0;
-                    border: 1px solid #dbeafe;
-                }}
-                .inv-cp-code {{
-                    color: #64748b;
-                    font-size: 0.75rem;
-                    white-space: nowrap;
-                    flex-shrink: 0;
-                }}
-                .inv-cp-end {{
-                    display: flex;
-                    align-items: center;
-                    gap: 16px;
-                    flex-shrink: 0;
-                    margin-left: auto;
-                }}
-                .inv-cp-stock {{
-                    font-size: 0.78rem;
-                    font-weight: 600;
-                    padding: 2px 8px;
-                    border-radius: 4px;
-                    white-space: nowrap;
-                }}
-                .inv-cp-stock-ok {{
-                    background-color: #f0fdf4;
-                    color: #166534;
-                    border: 1px solid #bbf7d0;
-                }}
-                .inv-cp-stock-critico {{
-                    background-color: #fef2f2;
-                    color: #b91c1c;
-                    border: 1px solid #fecaca;
-                }}
-                .inv-cp-price {{
-                    font-size: 1.02rem;
-                    font-weight: 700;
-                    color: #0f172a;
-                    white-space: nowrap;
-                    min-width: 90px;
-                    text-align: right;
-                }}
-                </style>
-                <div class="inv-cp-list">
-                    {''.join(rows_html)}
-                </div>
-                """
-                st.markdown(html_completo, unsafe_allow_html=True)
+                    if hasattr(st, "html"):
+                        st.html(fila_html)
+                    else:
+                        st.markdown(fila_html, unsafe_allow_html=True)
         else:
             st.info("No se encontraron productos coincidentes.")
 
