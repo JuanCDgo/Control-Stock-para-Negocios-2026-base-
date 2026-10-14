@@ -486,7 +486,7 @@ def armar_mensaje_whatsapp_ticket(datos_ticket: Dict[str, Any]) -> str:
     venta_id = datos_ticket.get("venta_id", "-")
     fecha = datos_ticket.get("fecha", "-")
     forma_pago = datos_ticket.get("forma_pago", "-")
-    total = datos_ticket.get("total", 0.0)
+    total = datos_ticket.get("total_venta", datos_ticket.get("total", 0.0))
 
     lineas = [
         f"Hola {cliente}! Te compartimos el comprobante de tu compra en *{negocio}*:",
@@ -494,7 +494,7 @@ def armar_mensaje_whatsapp_ticket(datos_ticket: Dict[str, Any]) -> str:
         f"- *Ticket Nro:* #{venta_id}",
         f"- *Fecha:* {fecha}",
         f"- *Medio de Pago:* {forma_pago}",
-        f"- *Total Abonado:* "
+        f"- *Total Abonado:* ${total:,.2f}",
     ]
 
     puntos_ganados = datos_ticket.get("puntos_ganados", 0)
