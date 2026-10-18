@@ -627,6 +627,7 @@ def obtener_movimientos_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
         .select("*")
         .eq("cliente_id", cliente_id)
         .eq("comercio_id", comercio_id)
+        .is_("archivado_en", "null")
         .order("id", desc=True)
         .execute()
     )
@@ -888,7 +889,7 @@ def registrar_movimiento_caja(comercio_id, tipo, monto, concepto, usuario_nombre
 def obtener_movimientos_caja(comercio_id, fecha_inicio, fecha_fin=None):
     """Obtiene los movimientos de caja chica en un rango de fechas."""
     supabase = get_connection()
-    query = supabase.table("movimientos_caja").select("*").eq("comercio_id", comercio_id).order("id", desc=True)
+    query = supabase.table("movimientos_caja").select("*").eq("comercio_id", comercio_id).is_("archivado_en", "null").order("id", desc=True)
     
     if fecha_inicio:
         inicio = f"{fecha_inicio} 00:00:00"
@@ -917,6 +918,7 @@ def obtener_arqueo_caja(fecha_str=None, comercio_id=COMERCIO_ID_DEFAULT, **kwarg
         supabase.table("ventas")
         .select("*, clientes(nombre)")
         .eq("comercio_id", comercio_id)
+        .is_("archivado_en", "null")          # lo archivado por la Puesta a cero no cuenta
         .order("id", desc=True)
     )
     
@@ -970,7 +972,7 @@ def obtener_arqueo_caja(fecha_str=None, comercio_id=COMERCIO_ID_DEFAULT, **kwarg
     ingresos_extras = sum(float(m["monto"]) for m in movs_caja if m["tipo"] == "ingreso_extra")
     egresos = sum(float(m["monto"]) for m in movs_caja if m["tipo"] == "egreso")
     
-    query_abonos = supabase.table("movimientos_cuenta").select("*").eq("comercio_id", comercio_id).eq("tipo", "PAGO").like("descripcion", "%(Efectivo)%")
+    query_abonos = supabase.table("movimientos_cuenta").select("*").eq("comercio_id", comercio_id).is_("archivado_en", "null").eq("tipo", "PAGO").like("descripcion", "%(Efectivo)%")
     if fecha_filtro:
         query_abonos = query_abonos.gte("fecha_hora", f"{fecha_filtro} 00:00:00").lte("fecha_hora", f"{fecha_filtro} 23:59:59")
     res_abonos = query_abonos.execute()
@@ -1003,8 +1005,8 @@ def obtener_arqueo_caja(fecha_str=None, comercio_id=COMERCIO_ID_DEFAULT, **kwarg
 # 5. MANTENIMIENTO Y REINICIO DE BASE
 # ==========================================
 
-RESET_MOVIMIENTOS = "movimientos"   # ventas, detalle, cuenta corriente; saldos a 0
-RESET_FABRICA = "total"              # además: productos, categorías y clientes
+RESET_MOVIMIENTOS = "movimientos"   # archiva ventas y movimientos; saldos y puntos a 0
+RESET_FABRICA = "total"              # además: da de baja productos, categorías y clientes
 
 
 @clears_cache
@@ -1012,16 +1014,15 @@ def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT):
     """
     Puesta a cero de datos de prueba del comercio, en UNA transacción (RPC
     `resetear_datos_comercio`, ver sql/reset_datos.sql). Exige el PIN de un usuario admin.
+    No borra nada: archiva y da de baja.
 
-    modo = RESET_MOVIMIENTOS: borra ventas, detalle, movimientos de cuenta corriente (y
-           caja/arqueos si existieran) y pone en 0 el saldo_deudor y los puntos de los
-           clientes. Conserva productos, categorías y clientes.
-    modo = RESET_FABRICA: lo anterior + productos, categorías y clientes. Conserva la
-           configuración del comercio y los usuarios.
+    modo = RESET_MOVIMIENTOS: archiva ventas, movimientos de cuenta corriente y de caja, y
+           pone en 0 el saldo_deudor y los puntos de los clientes. El catálogo no cambia.
+    modo = RESET_FABRICA: lo anterior + da de baja productos, categorías y clientes (se
+           pueden reactivar). Conserva la configuración del comercio y los usuarios.
 
-    Devuelve un dict con la cantidad de filas borradas por tabla. Lanza BusinessLogicError
-    (PIN incorrecto, sin permisos, bloqueo) o Exception (fallo técnico: no se borró nada).
-    Las fotos locales de productos solo se borran DESPUÉS de que la base confirmó el reset.
+    Devuelve un dict con la cantidad de filas afectadas por tabla. Lanza BusinessLogicError
+    (PIN incorrecto, sin permisos, bloqueo) o Exception (fallo técnico: no cambió nada).
     """
     if modo not in (RESET_MOVIMIENTOS, RESET_FABRICA):
         raise BusinessLogicError("Modo de reinicio inválido.")

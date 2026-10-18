@@ -101,3 +101,29 @@ def test_carga_masiva_reactiva_producto_y_categoria_de_baja(comercio_test):
 
     assert models.obtener_producto_por_codigo(codigo, comercio_id=comercio_test), "el producto sigue de baja"
     assert cat_id in [c["id"] for c in models.get_categorias(comercio_id=comercio_test)], "la categoría sigue de baja"
+
+
+def test_lo_archivado_no_aparece_en_arqueo_ni_historiales(comercio_test):
+    from datetime import datetime, timezone
+    hoy = datetime.now(timezone.utc).date().isoformat()
+    archivar = "update {t} set archivado_en = now() where comercio_id = %d and archivado_en is null" % comercio_test
+
+    _psql(archivar.format(t="ventas"))
+    _psql(f"insert into ventas (comercio_id, total_venta) values ({comercio_test}, 100)")
+    cid = models.crear_cliente(_unico("Archivo"), comercio_id=comercio_test)
+    models.registrar_abono_cliente(cid, 50, comercio_id=comercio_test)
+    _psql(archivar.format(t="movimientos_caja"))
+    _psql(f"insert into movimientos_caja (comercio_id, tipo, monto, concepto) "
+          f"values ({comercio_test}, 'egreso', 10, 'test')")
+    models.st.cache_data.clear()
+    assert models.obtener_arqueo_caja(hoy, comercio_id=comercio_test)["total_operaciones"] == 1
+    assert models.obtener_movimientos_cliente(cid, comercio_id=comercio_test)
+    assert len(models.obtener_movimientos_caja(comercio_test, hoy)) == 1
+
+    for t in ("ventas", "movimientos_cuenta", "movimientos_caja"):
+        _psql(archivar.format(t=t))
+    models.st.cache_data.clear()
+
+    assert models.obtener_arqueo_caja(hoy, comercio_id=comercio_test)["total_operaciones"] == 0
+    assert models.obtener_movimientos_cliente(cid, comercio_id=comercio_test) == []
+    assert models.obtener_movimientos_caja(comercio_test, hoy) == []
