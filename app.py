@@ -31,6 +31,7 @@ import models
 importlib.reload(models)
 import reportes
 importlib.reload(reportes)
+from formato import fmt_moneda, fmt_moneda_md, fmt_cantidad, fmt_puntos
 from config_manager import (
     cargar_configuracion,
     guardar_configuracion,
@@ -629,7 +630,7 @@ if total_deuda_side > 0:
                 💸 Deuda Total en Clientes
             </div>
             <div style="font-size: 1.25rem; font-weight: 800; color: #B45309; margin-top: 2px;">
-                ${total_deuda_side:,.2f}
+                {fmt_moneda(total_deuda_side)}
             </div>
             <div style="font-size: 0.75rem; color: #A16207; margin-top: 2px;">
                 👤 {clientes_deuda_side} cliente(s) con saldo en cuenta corriente
@@ -650,7 +651,7 @@ if modulo == "🛒 Punto de Venta (POS)":
     if st.session_state.carrito:
         _n_items = len(st.session_state.carrito)
         _total_carrito = sum(it["subtotal"] for it in st.session_state.carrito)
-        st.info(f"🛒 **{_n_items} ítem(s)** · Total **${_total_carrito:,.2f}** — [Ir a cobrar ↓](#carrito-actual)")
+        st.info(f"🛒 **{_n_items} ítem(s)** · Total **{fmt_moneda_md(_total_carrito)}** — [Ir a cobrar ↓](#carrito-actual)")
 
     # 1. INTEGRACIÓN CON LECTORA DE CÓDIGO DE BARRAS (EAN / SKU)
     with st.form("form_barcode_scanner", clear_on_submit=True):
@@ -694,7 +695,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                             "es_canje": False,
                             "precio_original": prod_esc["precio_venta"]
                         })
-                    st.toast(f"🛒 Agregado: {prod_esc['nombre']} x1 ($ {prod_esc['precio_venta']:,.2f})", icon="📦")
+                    st.toast(f"🛒 Agregado: {prod_esc['nombre']} x1 ({fmt_moneda_md(prod_esc['precio_venta'])})", icon="📦")
                     st.rerun()
 
     st.markdown("---")
@@ -750,7 +751,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                 prod_info = st.selectbox(
                     "Seleccionar de la lista:",
                     options=prods_lista,
-                    format_func=lambda p: f"{p['nombre']} - ${p['precio_venta']:,.2f}",
+                    format_func=lambda p: f"{p['nombre']} - {fmt_moneda(p['precio_venta'])}",
                     key="pos_select_producto"
                 )
 
@@ -778,17 +779,17 @@ if modulo == "🛒 Punto de Venta (POS)":
                         with col_datos:
                             st.subheader(prod_info["nombre"])
                             st.markdown(f"**Código:** `{prod_info['codigo']}`")
-                            st.markdown(f"**Precio de Venta:** ${prod_info['precio_venta']:,.2f}`")
+                            st.markdown(f"**Precio de Venta:** {fmt_moneda_md(prod_info['precio_venta'])}")
                             
                             if es_critico:
                                 st.markdown(
                                     f"<div style='background-color: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; font-weight: bold;'>"
-                                    f"⚠️ ¡ALERTA DE STOCK CRÍTICO! — Stock disponible: **{stock_actual:g}** unidades (Umbral mínimo: **{stock_minimo:g}**)."
+                                    f"⚠️ ¡ALERTA DE STOCK CRÍTICO! — Stock disponible: **{fmt_cantidad(stock_actual)}** unidades (Umbral mínimo: **{fmt_cantidad(stock_minimo)}**)."
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
                             else:
-                                st.success(f"✅ Stock disponible: **{stock_actual:g}** unidades (Mínimo: {stock_minimo:g})")
+                                st.success(f"✅ Stock disponible: **{fmt_cantidad(stock_actual)}** unidades (Mínimo: {fmt_cantidad(stock_minimo)})")
 
                 elif st.session_state.pos_vista_ficha == "Compacta":
                     with st.container(border=True):
@@ -808,18 +809,18 @@ if modulo == "🛒 Punto de Venta (POS)":
                                 )
                         with col_datos:
                             st.markdown(f"**{prod_info['nombre']}** (`{prod_info['codigo']}`)")
-                            st.markdown(f"💰 **Precio:** **${prod_info['precio_venta']:,.2f}**")
+                            st.markdown(f"💰 **Precio:** **{fmt_moneda_md(prod_info['precio_venta'])}**")
                             if es_critico:
                                 st.markdown(
                                     f"<div style='color: #c62828; font-size: 0.88rem; font-weight: bold; background: #fee2e2; padding: 3px 8px; border-radius: 4px; display: inline-block;'>"
-                                    f"⚠️ Stock Crítico: {stock_actual:g} (Mín: {stock_minimo:g})"
+                                    f"⚠️ Stock Crítico: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
                             else:
                                 st.markdown(
                                     f"<div style='color: #166534; font-size: 0.88rem; font-weight: bold; background: #dcfce7; padding: 3px 8px; border-radius: 4px; display: inline-block;'>"
-                                    f"✅ Stock: {stock_actual:g} unid. (Mín: {stock_minimo:g})"
+                                    f"✅ Stock: {fmt_cantidad(stock_actual)} unid. (Mín: {fmt_cantidad(stock_minimo)})"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
@@ -830,19 +831,19 @@ if modulo == "🛒 Punto de Venta (POS)":
                         with c_nom:
                             st.markdown(f"**{prod_info['nombre']}** (`{prod_info['codigo']}`)")
                         with c_pre:
-                            st.markdown(f"💰 **${prod_info['precio_venta']:,.2f}**")
+                            st.markdown(f"💰 **{fmt_moneda_md(prod_info['precio_venta'])}**")
                         with c_stk:
                             if es_critico:
                                 st.markdown(
                                     f"<div style='color: #c62828; font-weight: bold; font-size: 0.85rem; background: #fee2e2; padding: 3px 6px; border-radius: 4px; text-align: center;'>"
-                                    f"⚠️ Stock: {stock_actual:g}"
+                                    f"⚠️ Stock: {fmt_cantidad(stock_actual)}"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
                             else:
                                 st.markdown(
                                     f"<div style='color: #166534; font-weight: bold; font-size: 0.85rem; background: #dcfce7; padding: 3px 6px; border-radius: 4px; text-align: center;'>"
-                                    f"✅ Stock: {stock_actual:g}"
+                                    f"✅ Stock: {fmt_cantidad(stock_actual)}"
                                     f"</div>",
                                     unsafe_allow_html=True
                                 )
@@ -885,7 +886,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                             "Cantidad / Peso:",
                             min_value=0.001,
                             step=1.0,
-                            format="%.3f",
+                            format="%g",
                             key="pos_cant_val"
                         )
                     else:
@@ -899,7 +900,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                         )
                         if monto and monto > 0 and prod_info["precio_venta"] > 0:
                             cantidad = round(monto / prod_info["precio_venta"], 4)
-                            st.info(f"⚖️ Equivale a **{cantidad:g}** unidades/kg")
+                            st.info(f"⚖️ Equivale a **{fmt_cantidad(cantidad)}** unidades/kg")
                         else:
                             cantidad = 0.0
 
@@ -935,7 +936,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                             # fue instanciado en este run, así que no se puede tocar su key
                             # acá: se deja una bandera que se aplica ANTES de dibujarlo.
                             st.session_state["_pos_reset_cant"] = True
-                            st.toast(f"✅ Agregado: {prod_info['nombre']} x{cantidad:g} (${cantidad * prod_info['precio_venta']:,.2f})", icon="🛒")
+                            st.toast(f"✅ Agregado: {prod_info['nombre']} x{fmt_cantidad(cantidad)} ({fmt_moneda_md(cantidad * prod_info['precio_venta'])})", icon="🛒")
                             st.rerun()
 
     # Panel derecho: Carrito de compras, Selector de Cliente, Medio de pago y Cobro
@@ -947,7 +948,7 @@ if modulo == "🛒 Punto de Venta (POS)":
         opciones_clientes = ["Consumidor Final"]
         mapa_clientes = {}
         for c in clientes_pos:
-            lbl = f"{c['nombre']} (Tel: {c.get('telefono') or 'S/T'} | Deuda: ${c['saldo_deudor']:,.2f})"
+            lbl = f"{c['nombre']} (Tel: {c.get('telefono') or 'S/T'} | Deuda: {fmt_moneda(c['saldo_deudor'])})"
             opciones_clientes.append(lbl)
             mapa_clientes[lbl] = c
 
@@ -975,11 +976,11 @@ if modulo == "🛒 Punto de Venta (POS)":
                 <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 9px; padding: 10px 14px; margin: 8px 0 12px 0;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span style="font-weight: 700; color: #1E3A8A; font-size: 0.95rem;">⭐ Club de Puntos: {cliente_pos['nombre']}</span>
-                        <span style="background: #2563EB; color: white; padding: 2px 10px; border-radius: 12px; font-weight: 800; font-size: 0.95rem;">{pts_actual:,} pts</span>
+                        <span style="background: #2563EB; color: white; padding: 2px 10px; border-radius: 12px; font-weight: 800; font-size: 0.95rem;">{fmt_puntos(pts_actual)} pts</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 0.82rem; color: #1E40AF;">
-                        <span>🎁 Canjes en carrito: <b>{pts_canjes_carrito:,} pts</b></span>
-                        <span>✨ Saldo disponible: <b style="color: {color_saldo};">{pts_restantes:,} pts</b></span>
+                        <span>🎁 Canjes en carrito: <b>{fmt_puntos(pts_canjes_carrito)} pts</b></span>
+                        <span>✨ Saldo disponible: <b style="color: {color_saldo};">{fmt_puntos(pts_restantes)} pts</b></span>
                     </div>
                 </div>
                 """,
@@ -991,7 +992,7 @@ if modulo == "🛒 Punto de Venta (POS)":
             tk = st.session_state["ultimo_ticket"]
             with st.container(border=True):
                 st.markdown(f"#### 🧾 Comprobante: Ticket #{tk['venta_id']}")
-                st.caption(f"Cliente: **{tk['cliente_nombre']}** | Total: **${tk['total']:,.2f}** ({tk['forma_pago']})")
+                st.caption(f"Cliente: **{tk['cliente_nombre']}** | Total: **{fmt_moneda_md(tk['total'])}** ({tk['forma_pago']})")
 
                 c_pdf, c_wa = st.columns([1, 1], gap="small")
                 with c_pdf:
@@ -1039,15 +1040,15 @@ if modulo == "🛒 Punto de Venta (POS)":
                     with c_info:
                         st.markdown(f"**{item['nombre']}** (`{item['codigo']}`)")
                         if es_canje_item:
-                            st.markdown("<span style='background: #FEF3C7; color: #92400E; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;'>🎁 Canje por Puntos ($0.00)</span>", unsafe_allow_html=True)
-                            st.caption(f"{item['cantidad']:g} unid. | Costo: {pts_tot_item} pts")
+                            st.markdown("<span style='background: #FEF3C7; color: #92400E; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;'>🎁 Canje por Puntos ($ 0,00)</span>", unsafe_allow_html=True)
+                            st.caption(f"{fmt_cantidad(item['cantidad'])} unid. | Costo: {pts_tot_item} pts")
                         else:
-                            st.caption(f"{item['cantidad']:g} unid. x ${item['precio_unitario']:,.2f}")
+                            st.caption(f"{fmt_cantidad(item['cantidad'])} unid. x {fmt_moneda_md(item['precio_unitario'])}")
                     with c_sub:
                         if es_canje_item:
-                            st.markdown("<span style='color: #16A34A; font-weight: 800; font-size: 1.15rem;'>$0.00</span>", unsafe_allow_html=True)
+                            st.markdown("<span style='color: #16A34A; font-weight: 800; font-size: 1.15rem;'>$ 0,00</span>", unsafe_allow_html=True)
                         else:
-                            st.markdown(f"**${item['subtotal']:,.2f}**")
+                            st.markdown(f"**{fmt_moneda_md(item['subtotal'])}**")
                     with c_del:
                         if st.button("❌", key=f"del_cart_{idx}"):
                             st.session_state.carrito.pop(idx)
@@ -1097,7 +1098,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                 f"""
                 <div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 9px; padding: 10px 16px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 1.05rem; font-weight: 700; color: #475569;">Total a Cobrar:</span>
-                    <span style="font-size: 1.6rem; font-weight: 800; color: #0F172A;">${total_venta:,.2f}</span>
+                    <span style="font-size: 1.6rem; font-weight: 800; color: #0F172A;">{fmt_moneda(total_venta)}</span>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -1146,13 +1147,13 @@ if modulo == "🛒 Punto de Venta (POS)":
                         saldo_previsto = cliente_pos["saldo_deudor"] + total_venta
                         col_c1, col_c2 = st.columns(2)
                         with col_c1:
-                            st.markdown(f"**Saldo Actual:** ${cliente_pos['saldo_deudor']:,.2f}")
-                            st.markdown(f"**Límite Máximo:** ${cliente_pos['limite_credito']:,.2f}" if cliente_pos['limite_credito'] > 0 else "**Límite:** Sin límite")
+                            st.markdown(f"**Saldo Actual:** {fmt_moneda_md(cliente_pos['saldo_deudor'])}")
+                            st.markdown(f"**Límite Máximo:** {fmt_moneda_md(cliente_pos['limite_credito'])}" if cliente_pos['limite_credito'] > 0 else "**Límite:** Sin límite")
                         with col_c2:
-                            st.markdown(f"**Saldo Tras la Venta:** **${saldo_previsto:,.2f}**")
+                            st.markdown(f"**Saldo Tras la Venta:** **{fmt_moneda_md(saldo_previsto)}**")
 
                         if cliente_pos["limite_credito"] > 0 and saldo_previsto > cliente_pos["limite_credito"]:
-                            st.error(f"⛔ **LÍMITE EXCEDIDO:** La venta superará el límite de crédito configurado (${cliente_pos['limite_credito']:,.2f}).")
+                            st.error(f"⛔ **LÍMITE EXCEDIDO:** La venta superará el límite de crédito configurado ({fmt_moneda_md(cliente_pos['limite_credito'])}).")
                             bloquear_venta_fiado = True
                         else:
                             st.success(f"✅ Venta autorizada a la cuenta de {cliente_pos['nombre']}.")
@@ -1174,17 +1175,17 @@ if modulo == "🛒 Punto de Venta (POS)":
                         pts_cli = int(round(float(cliente_pos.get("puntos") or 0)))
                         c_p1, c_p2 = st.columns(2)
                         with c_p1:
-                            st.markdown(f"**Puntos Acumulados:** {pts_cli:,} pts")
-                            st.markdown(f"**Puntos a Canjear:** {total_pts_pedidos:,} pts")
+                            st.markdown(f"**Puntos Acumulados:** {fmt_puntos(pts_cli)} pts")
+                            st.markdown(f"**Puntos a Canjear:** {fmt_puntos(total_pts_pedidos)} pts")
                         with c_p2:
                             saldo_pts_post = pts_cli - total_pts_pedidos
                             color_pts = "#16A34A" if saldo_pts_post >= 0 else "#DC2626"
-                            st.markdown(f"**Saldo Final:** <b style='color: {color_pts};'>{saldo_pts_post:,} pts</b>", unsafe_allow_html=True)
+                            st.markdown(f"**Saldo Final:** <b style='color: {color_pts};'>{fmt_puntos(saldo_pts_post)} pts</b>", unsafe_allow_html=True)
                         if pts_cli < total_pts_pedidos:
-                            st.error(f"⛔ **PUNTOS INSUFICIENTES:** Los canjes en el carrito suman {total_pts_pedidos:,} pts y {cliente_pos['nombre']} solo posee {pts_cli:,} pts acumulados. Cancelá el canje o ajustá la cantidad.")
+                            st.error(f"⛔ **PUNTOS INSUFICIENTES:** Los canjes en el carrito suman {fmt_puntos(total_pts_pedidos)} pts y {cliente_pos['nombre']} solo posee {fmt_puntos(pts_cli)} pts acumulados. Cancelá el canje o ajustá la cantidad.")
                             bloquear_canje_puntos = True
                         else:
-                            st.success(f"✅ Canje autorizado: Se descontarán {total_pts_pedidos:,} puntos de la cuenta de {cliente_pos['nombre']}.")
+                            st.success(f"✅ Canje autorizado: Se descontarán {fmt_puntos(total_pts_pedidos)} puntos de la cuenta de {cliente_pos['nombre']}.")
 
             st.write("")
             col_btn_vender, col_btn_vaciar = st.columns([2.5, 1], gap="small")
@@ -1194,7 +1195,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                     st.rerun()
             with col_btn_vender:
                 boton_deshabilitado = bloquear_venta_fiado or bloquear_canje_puntos
-                if st.button(f"✅ CONFIRMAR Y COBRAR (${total_venta:,.2f})", type="primary", disabled=boton_deshabilitado, use_container_width=True):
+                if st.button(f"✅ CONFIRMAR Y COBRAR ({fmt_moneda_md(total_venta)})", type="primary", disabled=boton_deshabilitado, use_container_width=True):
 
                     try:
                         items_venta = [
@@ -1265,7 +1266,7 @@ if modulo == "🛒 Punto de Venta (POS)":
 
                         st.session_state.carrito = []
                         st.balloons()
-                        st.success(f"🎉 ¡Venta #{venta_id} confirmada por ${total_ticket:,.2f} ({forma_pago})!")
+                        st.success(f"🎉 ¡Venta #{venta_id} confirmada por {fmt_moneda_md(total_ticket)} ({forma_pago})!")
                         st.rerun()
                     except models.InsufficientStockError as err:
                         st.error(f"Stock insuficiente: {err}")
@@ -1283,7 +1284,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
     # Resumen Financiero de Cuentas Corrientes
     resumen_deuda = models.obtener_resumen_deuda_total()
     col_k1, col_k2, col_k3 = st.columns(3)
-    col_k1.metric("💸 Deuda Total en la Calle", f"${resumen_deuda.get('total_deuda', 0.0):,.2f}")
+    col_k1.metric("💸 Deuda Total en la Calle", f"{fmt_moneda(resumen_deuda.get('total_deuda', 0.0))}")
     col_k2.metric("⚠️ Clientes con Deuda Activa", f"{resumen_deuda.get('clientes_con_deuda', 0)} clientes")
     col_k3.metric("👤 Clientes Registrados", f"{resumen_deuda.get('total_clientes', 0)}")
 
@@ -1316,15 +1317,15 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                         st.markdown(f"### {c['nombre']}")
                         st.caption(f"📞 Tel: {c['telefono'] or 'Sin teléfono'} | ✉️ {c['email'] or 'Sin correo'}")
                     with c2:
-                        limite_txt = f"${c['limite_credito']:,.2f}" if c['limite_credito'] > 0 else "Sin límite"
+                        limite_txt = f"{fmt_moneda_md(c['limite_credito'])}" if c['limite_credito'] > 0 else "Sin límite"
                         st.markdown(f"**Límite de Crédito:** {limite_txt}")
                     with c3:
                         if c["saldo_deudor"] > 0:
-                            st.error(f"🔴 **Debe: ${c['saldo_deudor']:,.2f}**")
+                            st.error(f"🔴 **Debe: {fmt_moneda_md(c['saldo_deudor'])}**")
                         else:
-                            st.success("🟢 **Al día ($0.00)**")
+                            st.success("🟢 **Al día ($ 0,00)**")
                     with c4:
-                        st.markdown(f"🏷️ **Puntos:** {c.get('puntos', 0):,.2f}")
+                        st.markdown(f"🏷️ **Puntos:** {fmt_puntos(c.get('puntos', 0))}")
     # 2. Alta de Cliente
     with tab_c_nuevo:
         st.subheader("Registrar Nuevo Cliente")
@@ -1367,7 +1368,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
             st.info("No hay clientes registrados.")
         else:
             dict_cli_abono = {
-                f"{c['nombre']} (Saldo Deudor: ${c['saldo_deudor']:,.2f})": c
+                f"{c['nombre']} (Saldo Deudor: {fmt_moneda(c['saldo_deudor'])})": c
                 for c in clientes_abono
             }
             sel_cli_abono = st.selectbox("Seleccione el Cliente:", list(dict_cli_abono.keys()), key="select_cli_abono")
@@ -1375,7 +1376,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
 
             with st.container(border=True):
                 st.markdown(f"#### Ficha: {cli_a_abonar['nombre']}")
-                st.markdown(f"**Deuda Actual:** :red[**${cli_a_abonar['saldo_deudor']:,.2f}**]")
+                st.markdown(f"**Deuda Actual:** :red[**{fmt_moneda_md(cli_a_abonar['saldo_deudor'])}**]")
 
                 col_ab1, col_ab2 = st.columns(2)
                 with col_ab1:
@@ -1391,7 +1392,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                 with col_ab2:
                     nuevo_saldo_previsto = max(0.0, cli_a_abonar["saldo_deudor"] - monto_abono)
                     st.markdown("#### Balance Estimado:")
-                    st.markdown(f"**Saldo Restante:** :green[**${nuevo_saldo_previsto:,.2f}**]")
+                    st.markdown(f"**Saldo Restante:** :green[**{fmt_moneda_md(nuevo_saldo_previsto)}**]")
                     nota_abono = st.text_input("Nota / Comprobante (Opcional):", placeholder="Ej: Pago parcial efectivo")
 
                 if st.button("✅ Confirmar y Registrar Abono", type="primary"):
@@ -1402,7 +1403,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                             metodo_pago=metodo_abono,
                             descripcion=nota_abono or None
                         )
-                        st.success(f"🎉 Abono registrado con éxito (#{mov_id}) por ${monto_abono:,.2f}. Nuevo saldo: ${nuevo_saldo_previsto:,.2f}")
+                        st.success(f"🎉 Abono registrado con éxito (#{mov_id}) por {fmt_moneda_md(monto_abono)}. Nuevo saldo: {fmt_moneda_md(nuevo_saldo_previsto)}")
                         st.rerun()
                     except models.BusinessLogicError as e:
                         st.error(f"Error: {e}")
@@ -1416,7 +1417,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
         if not clientes_ficha:
             st.info("No hay clientes registrados.")
         else:
-            dict_cli_ficha = {f"{c['nombre']} (${c['saldo_deudor']:,.2f})": c for c in clientes_ficha}
+            dict_cli_ficha = {f"{c['nombre']} ({fmt_moneda(c['saldo_deudor'])})": c for c in clientes_ficha}
             sel_ficha = st.selectbox("Seleccione el cliente a consultar:", list(dict_cli_ficha.keys()), key="sel_ficha_cli")
             cli_f = dict_cli_ficha[sel_ficha]
 
@@ -1424,9 +1425,9 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                 c_f1, c_f2, c_f3, c_f4 = st.columns([2, 1.5, 1.5, 1.5])
                 c_f1.markdown(f"**Cliente:** {cli_f['nombre']}")
                 c_f1.caption(f"📞 {cli_f['telefono'] or 'S/T'} | ✉️ {cli_f['email'] or 'S/E'}")
-                c_f2.markdown(f"**Límite de Crédito:** ${cli_f['limite_credito']:,.2f}" if cli_f['limite_credito'] > 0 else "**Límite:** Sin límite")
-                c_f3.markdown(f"**Saldo Deudor:** :red[**${cli_f['saldo_deudor']:,.2f}**]" if cli_f['saldo_deudor'] > 0 else "**Saldo Deudor:** :green[**$0.00**]")
-                c_f4.markdown(f"🏷️ **Puntos:** {cli_f.get('puntos', 0):,.2f}")
+                c_f2.markdown(f"**Límite de Crédito:** {fmt_moneda_md(cli_f['limite_credito'])}" if cli_f['limite_credito'] > 0 else "**Límite:** Sin límite")
+                c_f3.markdown(f"**Saldo Deudor:** :red[**{fmt_moneda_md(cli_f['saldo_deudor'])}**]" if cli_f['saldo_deudor'] > 0 else f"**Saldo Deudor:** :green[**{fmt_moneda_md(0)}**]")
+                c_f4.markdown(f"🏷️ **Puntos:** {fmt_puntos(cli_f.get('puntos', 0))}")
 
             movimientos = models.obtener_movimientos_cliente(cli_f["id"])
             if not movimientos:
@@ -1434,7 +1435,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
             else:
                 df_movs = pd.DataFrame(movimientos)
                 df_movs["tipo_fmt"] = df_movs["tipo"].map({"CARGO": "🔴 CARGO (Compra Fiada)", "PAGO": "🟢 PAGO (Abono)"})
-                df_movs["monto_fmt"] = df_movs["monto"].apply(lambda x: f"${x:,.2f}")
+                df_movs["monto_fmt"] = df_movs["monto"].apply(lambda x: f"{fmt_moneda(x)}")
                 df_movs["fecha_hora"] = pd.to_datetime(df_movs["fecha_hora"], utc=True).dt.tz_convert(ZONA_HORARIA).dt.strftime("%d/%m/%Y %H:%M")
                 
                 df_mostrar = df_movs[["fecha_hora", "tipo_fmt", "monto_fmt", "descripcion", "ticket_id"]].rename(
@@ -1480,7 +1481,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                             st.error(f"Error: {e}")
 
                 with st.expander("🗑️ Zona de Baja: Eliminar Cliente"):
-                    st.warning("Solo se permite eliminar clientes sin deuda pendiente ($0.00).")
+                    st.warning("Solo se permite eliminar clientes sin deuda pendiente ($ 0,00).")
                     chk_del_cli = st.checkbox("Confirmo que deseo eliminar este cliente", key=f"chk_del_c_{cid}")
                     if st.button("Confirmar Eliminación de Cliente", type="secondary", disabled=not chk_del_cli, key=f"btn_del_c_{cid}"):
                         try:
@@ -1579,9 +1580,9 @@ elif modulo == "📦 Productos e Inventario":
                             
                             lista_preview.append({
                                 "Producto": p["nombre"],
-                                "Precio Actual": f"${float(p['precio_venta']):,.2f}",
-                                "Nuevo Precio": f"${nuevo_venta:,.2f}",
-                                "Diferencia": f"${(nuevo_venta - float(p['precio_venta'])):,.2f}"
+                                "Precio Actual": f"{fmt_moneda(float(p['precio_venta']))}",
+                                "Nuevo Precio": f"{fmt_moneda(nuevo_venta)}",
+                                "Diferencia": f"{fmt_moneda((nuevo_venta - float(p['precio_venta'])))}"
                             })
                         
                         if simular:
@@ -1679,7 +1680,7 @@ elif modulo == "📦 Productos e Inventario":
                         # Precio en grande
                         st.markdown(
                             f"""<div style="font-size: 1.45rem; font-weight: 800; color: #0f172a; margin: 4px 0;">
-                                ${precio_venta:,.2f}
+                                {fmt_moneda(precio_venta)}
                             </div>""",
                             unsafe_allow_html=True
                         )
@@ -1688,14 +1689,14 @@ elif modulo == "📦 Productos e Inventario":
                         if stock_actual <= stock_minimo:
                             st.markdown(
                                 f"""<div style="background-color: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
-                                    🚨 Stock: {stock_actual:g} (Mín: {stock_minimo:g})
+                                    🚨 Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
                                 </div>""",
                                 unsafe_allow_html=True
                             )
                         else:
                             st.markdown(
                                 f"""<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
-                                    📦 Stock: {stock_actual:g} (Mín: {stock_minimo:g})
+                                    📦 Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
                                 </div>""",
                                 unsafe_allow_html=True
                             )
@@ -1829,9 +1830,9 @@ elif modulo == "📦 Productos e Inventario":
                         thumb_html = '<div class="inv-cp-thumb"><span style="font-size: 1.15rem;">📦</span></div>'
 
                     stock_badge = (
-                        f'<span class="inv-cp-stock inv-cp-stock-critico" title="Stock Crítico (Mín: {stock_min:g})">🚨 Stock: {stock_act:g}</span>'
+                        f'<span class="inv-cp-stock inv-cp-stock-critico" title="Stock Crítico (Mín: {fmt_cantidad(stock_min)})">🚨 Stock: {fmt_cantidad(stock_act)}</span>'
                         if es_critico
-                        else f'<span class="inv-cp-stock inv-cp-stock-ok" title="Stock Normal (Mín: {stock_min:g})">📦 Stock: {stock_act:g}</span>'
+                        else f'<span class="inv-cp-stock inv-cp-stock-ok" title="Stock Normal (Mín: {fmt_cantidad(stock_min)})">📦 Stock: {fmt_cantidad(stock_act)}</span>'
                     )
 
                     pts_canje_val = int(p.get("puntos_canje") or 0)
@@ -1851,7 +1852,7 @@ elif modulo == "📦 Productos e Inventario":
                         f'</div>'
                         f'<div class="inv-cp-end">'
                         f'{stock_badge}'
-                        f'<span class="inv-cp-price">${precio_val:,.2f}</span>'
+                        f'<span class="inv-cp-price">{fmt_moneda(precio_val)}</span>'
                         f'</div>'
                         f'</div>'
                     )
@@ -1893,7 +1894,7 @@ elif modulo == "📦 Productos e Inventario":
             margen = st.number_input("Margen de Ganancia (%)", min_value=0.0, value=30.0, step=5.0, format="%.2f", key=f"np_margen_{vnp}")
 
             precio_sugerido = models.calcular_precio_venta(costo, margen)
-            st.info(f"💡 Precio Calculado Automático: **${precio_sugerido:,.2f}**")
+            st.info(f"💡 Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido)}**")
 
             usa_manual = st.checkbox("Sobreescribir precio de venta manualmente", key=f"np_usa_manual_{vnp}")
             precio_manual = None
@@ -2061,7 +2062,7 @@ elif modulo == "📦 Productos e Inventario":
                 )
 
                 precio_sugerido_edit = models.calcular_precio_venta(costo_edit, margen_edit)
-                st.info(f"💡 Precio Calculado Automático: **${precio_sugerido_edit:,.2f}**")
+                st.info(f"💡 Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido_edit)}**")
 
                 usa_manual_edit = st.checkbox(
                     "Sobreescribir precio de venta manualmente",
@@ -2201,12 +2202,12 @@ elif modulo == "📦 Productos e Inventario":
                     else:
                         ingreso_cant = st.number_input("Cantidad ingresada", min_value=0.001, value=10.0, step=1.0, format="%g", key=f"aj_ingreso_{ka}")
                         nuevo_stock_val = round(prod_a_ajustar["stock_actual"] + ingreso_cant, 3)
-                        st.caption(f"Stock resultante: **{nuevo_stock_val:g}** unidades")
+                        st.caption(f"Stock resultante: **{fmt_cantidad(nuevo_stock_val)}** unidades")
 
                     if st.button("Guardar Stock Actual", type="primary", key=f"aj_guardar_{ka}"):
                         try:
                             models.ajustar_stock(prod_a_ajustar["id"], nuevo_stock_val)
-                            st.session_state["flash_inventario"] = f"✅ Stock de '{prod_a_ajustar['nombre']}' actualizado a {nuevo_stock_val:g} unidades."
+                            st.session_state["flash_inventario"] = f"✅ Stock de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_stock_val)} unidades."
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(str(e))
@@ -2228,7 +2229,7 @@ elif modulo == "📦 Productos e Inventario":
                     if st.button("Guardar Stock Mínimo", key=f"aj_guardar_min_{ka}"):
                         try:
                             models.actualizar_stock_minimo(prod_a_ajustar["id"], nuevo_minimo)
-                            st.session_state["flash_inventario"] = f"✅ Stock mínimo de '{prod_a_ajustar['nombre']}' actualizado a {nuevo_minimo:g}."
+                            st.session_state["flash_inventario"] = f"✅ Stock mínimo de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_minimo)}."
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(str(e))
@@ -2479,7 +2480,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
 
     col_fecha, col_btn_cierre = st.columns([1, 1.5], gap="large")
     with col_fecha:
-        fecha_elegida = st.date_input("Fecha de consulta:", value=date.today())
+        fecha_elegida = st.date_input("Fecha de consulta:", value=date.today(), format="DD/MM/YYYY")
 
     resumen = models.obtener_arqueo_caja(fecha_elegida.strftime("%Y-%m-%d"))
 
@@ -2521,7 +2522,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
         # Formatear la fecha
         df_movs["fecha"] = pd.to_datetime(df_movs["fecha"], utc=True).dt.tz_convert(ZONA_HORARIA).dt.strftime("%H:%M")
         df_movs["tipo"] = df_movs["tipo"].map({"egreso": "🔴 Egreso", "ingreso_extra": "🟢 Ingreso Extra"})
-        df_movs["monto"] = df_movs["monto"].apply(lambda x: f"${float(x):,.2f}")
+        df_movs["monto"] = df_movs["monto"].apply(lambda x: f"{fmt_moneda(float(x))}")
         df_movs = df_movs.rename(columns={
             "fecha": "Hora", "tipo": "Tipo", "concepto": "Concepto", 
             "monto": "Monto", "usuario_nombre": "Responsable"
@@ -2533,18 +2534,18 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
     # Métricas Principales (KPI Cards) - Reorganizadas para mostrar el Efectivo Esperado
     st.subheader("📊 Balance del Día")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("💰 Total Ventas", f"${resumen['total_vendido']:,.2f}")
-    m2.metric("💵 Efectivo Esperado", f"${resumen['total_efectivo_esperado']:,.2f}")
-    m3.metric("📈 Ganancia Estimada", f"${resumen['ganancia_estimada']:,.2f}")
+    m1.metric("💰 Total Ventas", f"{fmt_moneda(resumen['total_vendido'])}")
+    m2.metric("💵 Efectivo Esperado", f"{fmt_moneda(resumen['total_efectivo_esperado'])}")
+    m3.metric("📈 Ganancia Estimada", f"{fmt_moneda(resumen['ganancia_estimada'])}")
     m4.metric("🧾 Tickets", resumen['total_operaciones'])
 
     # Desglose de Efectivo Esperado en expander
     with st.expander("🔍 Ver Desglose de Efectivo Esperado", expanded=False):
-        st.write(f"**+ Ventas en Efectivo:** ${resumen.get('ventas_efectivo', 0):,.2f}")
-        st.write(f"**+ Cobros de Fiado (Efectivo):** ${resumen.get('cobros_fiado_efectivo', 0):,.2f}")
-        st.write(f"**+ Ingresos Extras (Manual):** ${resumen.get('ingresos_extras', 0):,.2f}")
-        st.write(f"**- Egresos (Gastos / Retiros):** ${resumen.get('egresos', 0):,.2f}")
-        st.markdown(f"**= EFECTIVO ESPERADO EN CAJA: ${resumen.get('total_efectivo_esperado', 0):,.2f}**")
+        st.write(f"**+ Ventas en Efectivo:** {fmt_moneda_md(resumen.get('ventas_efectivo', 0))}")
+        st.write(f"**+ Cobros de Fiado (Efectivo):** {fmt_moneda_md(resumen.get('cobros_fiado_efectivo', 0))}")
+        st.write(f"**+ Ingresos Extras (Manual):** {fmt_moneda_md(resumen.get('ingresos_extras', 0))}")
+        st.write(f"**- Egresos (Gastos / Retiros):** {fmt_moneda_md(resumen.get('egresos', 0))}")
+        st.markdown(f"**= EFECTIVO ESPERADO EN CAJA: {fmt_moneda_md(resumen.get('total_efectivo_esperado', 0))}**")
 
     st.markdown("---")
 
@@ -2658,7 +2659,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                 except:
                     hora_str = v['fecha_hora']
                 cli_info = f" [Cliente: {v['cliente_nombre']}]" if v.get("cliente_nombre") else ""
-                with st.expander(f"Ticket #{v['id']} - {hora_str} | ${v['total_venta']:,.2f} ({v['forma_pago']}){cli_info}"):
+                with st.expander(f"Ticket #{v['id']} - {hora_str} | {fmt_moneda_md(v['total_venta'])} ({v['forma_pago']}){cli_info}"):
                     detalles = models.obtener_detalle_de_venta(v["id"])
                     if detalles:
                         df_det = pd.DataFrame(detalles)[["codigo", "nombre", "cantidad", "precio_unitario", "subtotal"]].rename(

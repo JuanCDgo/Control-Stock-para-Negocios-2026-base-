@@ -16,4 +16,4 @@ def test_pdf_ticket_imprime_el_monto(monkeypatch):
     import reportlab.rl_config
     monkeypatch.setattr(reportlab.rl_config, "pageCompression", 0)
     pdf = generar_pdf_ticket_termico({"total_venta": 1234.5, "items": []}, "Test")
-    assert b"1,234.50" in pdf  # Task 6 cambia esta aserción al formato es-AR
+    assert b"$ 1.234,50" in pdf

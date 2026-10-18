@@ -12,6 +12,7 @@ def clears_cache(func):
 import os
 import pandas as pd
 from database import get_connection
+from formato import fmt_moneda
 
 # ID de comercio por defecto para el primer cliente
 COMERCIO_ID_DEFAULT = 1
@@ -501,7 +502,7 @@ def eliminar_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
     
     saldo = float(cli.data[0].get("saldo_deudor") or 0.0)
     if saldo > 0:
-        raise BusinessLogicError(f"No se puede eliminar a '{cli.data[0]['nombre']}' porque registra una deuda activa de ${saldo:,.2f}.")
+        raise BusinessLogicError(f"No se puede eliminar a '{cli.data[0]['nombre']}' porque registra una deuda activa de {fmt_moneda(saldo)}.")
     
     try:
         supabase.table("movimientos_cuenta").delete().eq("cliente_id", cliente_id).execute()
