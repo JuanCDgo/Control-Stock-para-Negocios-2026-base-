@@ -102,6 +102,7 @@ begin
           from productos
          where id = v_item.producto_id
            and comercio_id = p_comercio_id
+           and activo                      -- dado de baja: no se vende aunque esté en un carrito
            for update;
 
         if not found then
@@ -128,6 +129,7 @@ begin
           from clientes
          where id = p_cliente_id
            and comercio_id = p_comercio_id
+           and activo                      -- a un cliente dado de baja no se le fía
            for update;
 
         if not found then
