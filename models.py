@@ -989,8 +989,8 @@ def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT):
     `resetear_datos_comercio`, ver sql/reset_datos.sql). Exige el PIN de un usuario admin.
 
     modo = RESET_MOVIMIENTOS: borra ventas, detalle, movimientos de cuenta corriente (y
-           caja/arqueos si existieran) y pone saldo_deudor = 0. Conserva productos,
-           categorías y clientes.
+           caja/arqueos si existieran) y pone en 0 el saldo_deudor y los puntos de los
+           clientes. Conserva productos, categorías y clientes.
     modo = RESET_FABRICA: lo anterior + productos, categorías y clientes. Conserva la
            configuración del comercio y los usuarios.
 

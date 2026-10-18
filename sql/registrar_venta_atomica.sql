@@ -35,6 +35,9 @@ declare
     v_prod       record;
     v_cli        record;
 begin
+    -- Mismo lock que resetear_datos_comercio: una venta no se cruza con un reset del comercio
+    perform pg_advisory_xact_lock(p_comercio_id);
+
     -- ---------- 0. Validaciones de entrada ----------
     if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
         raise exception 'El carrito está vacío.' using errcode = 'SV002';

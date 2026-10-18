@@ -2905,7 +2905,7 @@ elif modulo == "⚙️ Configuración del Negocio":
         if opcion_reset == OPC_MOV:
             st.info(
                 "Borra **ventas, detalle de ventas, movimientos de cuenta corriente** (y caja/arqueos si existen) "
-                "y deja en **$0** el saldo de todos los clientes. "
+                "y deja en **0** el saldo y los puntos de todos los clientes. "
                 "**Conserva** productos, categorías y clientes."
             )
         else:
