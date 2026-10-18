@@ -27,3 +27,19 @@ def test_moneda_md_escapa_el_signo_para_markdown():
     from formato import fmt_moneda_md
     assert fmt_moneda_md(2295) == r"\$ 2.295,00"
     assert fmt_moneda_md(-1500) == r"-\$ 1.500,00"
+
+
+def test_sin_cero_negativo():
+    # el signo se decide sobre el valor ya redondeado
+    assert fmt_moneda(-0.004) == "$ 0,00"
+    assert fmt_cantidad(-0.0004) == "0"
+    assert fmt_puntos(-0.001) == "0"
+
+
+def test_formatear_df_para_tablas():
+    import pandas as pd
+    from formato import formatear_df
+    df = pd.DataFrame([{"Producto": "Queso", "Venta ($)": 9425.0, "Stock": 4.35, "Puntos": 1250.0}])
+    out = formatear_df(df, monedas=["Venta ($)"], cantidades=["Stock"], puntos=["Puntos"])
+    assert out.iloc[0].tolist() == ["Queso", "$ 9.425,00", "4,35", "1.250"]
+    assert df.iloc[0]["Venta ($)"] == 9425.0  # no modifica el original

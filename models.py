@@ -12,7 +12,7 @@ def clears_cache(func):
 import os
 import pandas as pd
 from database import get_connection
-from formato import fmt_moneda
+from formato import fmt_moneda, fmt_puntos
 
 # ID de comercio por defecto para el primer cliente
 COMERCIO_ID_DEFAULT = 1
@@ -418,7 +418,7 @@ def _formatear_cliente(c):
         "email": c.get("email") or "",
         "limite_credito": float(c.get("limite_credito") or 0.0),
         "saldo_deudor": float(c.get("saldo_deudor") or 0.0),
-        "puntos": int(round(float(c.get("puntos") or 0.0))),
+        "puntos": round(float(c.get("puntos") or 0.0), 2),   # con decimales: se ganan con el 1% de la venta
         "created_at": c.get("created_at") or ""
     }
 
@@ -520,7 +520,7 @@ def registrar_abono_cliente(cliente_id, monto, metodo_pago="Efectivo", descripci
     """Registra una entrega de dinero / abono de un cliente para amortizar su saldo deudor."""
     monto_val = float(monto or 0.0)
     if monto_val <= 0:
-        raise BusinessLogicError("El monto del abono debe ser mayor a $0.00.")
+        raise BusinessLogicError("El monto del abono debe ser mayor a $ 0,00.")
     
     supabase = get_connection()
     cli = supabase.table("clientes").select("id, nombre, saldo_deudor").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
@@ -552,46 +552,6 @@ def registrar_abono_cliente(cliente_id, monto, metodo_pago="Efectivo", descripci
 def registrar_pago_cliente(cliente_id, monto, descripcion="Pago a cuenta", comercio_id=COMERCIO_ID_DEFAULT):
     """Alias compatible con versiones previas."""
     return registrar_abono_cliente(cliente_id, monto, metodo_pago="Efectivo", descripcion=descripcion, comercio_id=comercio_id)
-
-@clears_cache
-def sumar_puntos_cliente(cliente_id, puntos_a_sumar, comercio_id=COMERCIO_ID_DEFAULT):
-    """
-    Suma puntos al cliente en el programa de fidelidad.
-    Devuelve el nuevo balance de puntos (entero).
-    """
-    puntos_val = int(puntos_a_sumar or 0)
-    if puntos_val <= 0:
-        return 0
-    supabase = get_connection()
-    cli = supabase.table("clientes").select("id, puntos").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
-    if not cli.data:
-        raise BusinessLogicError("Cliente no encontrado.")
-    actual = int(round(float(cli.data[0].get("puntos") or 0.0)))
-    nuevo = actual + puntos_val
-    supabase.table("clientes").update({"puntos": nuevo}).eq("id", cliente_id).execute()
-    return nuevo
-
-@clears_cache
-def restar_puntos_cliente(cliente_id, puntos_a_restar, comercio_id=COMERCIO_ID_DEFAULT):
-    """
-    Resta puntos al cliente cuando se realiza un canje de premios.
-    Valida que el cliente posea puntos suficientes; si no alcanza, lanza BusinessLogicError.
-    Devuelve el nuevo balance de puntos (entero).
-    """
-    puntos_val = int(puntos_a_restar or 0)
-    if puntos_val <= 0:
-        return 0
-    supabase = get_connection()
-    cli = supabase.table("clientes").select("id, nombre, puntos").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
-    if not cli.data:
-        raise BusinessLogicError("Cliente no encontrado.")
-    actual = int(round(float(cli.data[0].get("puntos") or 0.0)))
-    if actual < puntos_val:
-        nombre = cli.data[0].get("nombre") or "El cliente"
-        raise BusinessLogicError(f"Puntos insuficientes: {nombre} tiene {actual} puntos y el canje requiere {puntos_val} puntos.")
-    nuevo = actual - puntos_val
-    supabase.table("clientes").update({"puntos": nuevo}).eq("id", cliente_id).execute()
-    return nuevo
 
 @st.cache_data(ttl=120)
 def obtener_movimientos_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
@@ -638,7 +598,7 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
 
     `items`: lista de dicts con `producto_id` (o `id`), `cantidad`, y opcionalmente `es_canje`.
     Para ítems normales el precio se toma de la base. Para ítems en canje (`es_canje=True`),
-    el precio de venta pasa a $0.00, el stock se descuenta de forma habitual y se descuentan
+    el precio de venta pasa a $ 0,00, el stock se descuenta de forma habitual y se descuentan
     los puntos correspondientes de la cuenta del cliente en Supabase.
     Devuelve el ID de la venta (ticket) y los puntos ganados o netos.
 
@@ -724,11 +684,13 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
         cli_res = supabase.table("clientes").select("id, nombre, puntos").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
         if not cli_res.data:
             raise BusinessLogicError("El cliente seleccionado no existe.")
-        puntos_actuales = int(round(float(cli_res.data[0].get("puntos") or 0.0)))
+        # Sin redondear: 99,5 puntos no alcanzan para un canje de 100
+        puntos_actuales = round(float(cli_res.data[0].get("puntos") or 0.0), 2)
         if puntos_actuales < total_puntos_canje:
             nombre_cli = cli_res.data[0].get("nombre") or "El cliente"
             raise BusinessLogicError(
-                f"Puntos insuficientes: {nombre_cli} tiene {puntos_actuales} puntos y el canje requiere {total_puntos_canje} puntos."
+                f"Puntos insuficientes: {nombre_cli} tiene {fmt_puntos(puntos_actuales)} puntos "
+                f"y el canje requiere {fmt_puntos(total_puntos_canje)} puntos."
             )
 
     # 3. Cálculo de puntos ganados y puntos netos
@@ -839,7 +801,7 @@ def registrar_movimiento_caja(comercio_id, tipo, monto, concepto, usuario_nombre
     """Registra un ingreso extra o egreso de efectivo en la caja chica."""
     monto_val = float(monto or 0.0)
     if monto_val <= 0:
-        raise BusinessLogicError("El monto debe ser mayor a $0.00.")
+        raise BusinessLogicError("El monto debe ser mayor a $ 0,00.")
     if tipo not in ('ingreso_extra', 'egreso'):
         raise BusinessLogicError("Tipo de movimiento inválido.")
     if not concepto or not str(concepto).strip():
@@ -1120,6 +1082,8 @@ def cambiar_pin(usuario_id, pin_actual, pin_nuevo):
         raise BusinessLogicError("El PIN nuevo debe tener exactamente 4 dígitos numéricos.")
     if motivo == "pin_inseguro":
         raise BusinessLogicError("Elegí un PIN propio: 1234 y 0000 son PIN de ejemplo.")
+    if motivo == "bloqueado":
+        raise BusinessLogicError(_mensaje_fallo_login(res))
     raise BusinessLogicError("No se pudo cambiar el PIN (usuario no disponible).")
 
 

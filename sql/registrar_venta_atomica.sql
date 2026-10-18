@@ -15,6 +15,22 @@
 -- Si alguno es uuid/text, cambiá el tipo en los parámetros y en jsonb_to_recordset.
 -- =====================================================================
 
+-- Número con formato argentino para los mensajes de error (punto de miles, coma decimal).
+-- to_char con ',' y '.' literales no depende del locale de la base.
+create or replace function public.fmt_numero_ar(p numeric, p_decimales int default 2, p_sin_ceros boolean default false)
+returns text
+language sql
+immutable
+as $$
+    select case when p_sin_ceros
+                then regexp_replace(regexp_replace(s, '0+$', ''), ',$', '')
+                else s end
+      from (select translate(
+                to_char(round(p, p_decimales),
+                        'FM999,999,999,990' || case when p_decimales > 0 then '.' || repeat('0', p_decimales) else '' end),
+                ',.', '.,') as s) x;
+$$;
+
 create or replace function public.registrar_venta_atomica(
     p_comercio_id bigint,
     p_cliente_id  bigint,
@@ -36,7 +52,7 @@ declare
     v_cli        record;
 begin
     -- Mismo lock que resetear_datos_comercio: una venta no se cruza con un reset del comercio
-    perform pg_advisory_xact_lock(p_comercio_id);
+    perform pg_advisory_xact_lock(hashtext('control_stock.comercio'), p_comercio_id::int);
 
     -- ---------- 0. Validaciones de entrada ----------
     if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
@@ -95,7 +111,8 @@ begin
 
         if coalesce(v_prod.stock_actual, 0) < v_item.cantidad then
             raise exception '''%'': pediste % y hay % en stock.',
-                v_prod.nombre, v_item.cantidad::float8, coalesce(v_prod.stock_actual, 0)::float8
+                v_prod.nombre, public.fmt_numero_ar(v_item.cantidad, 3, true),
+                public.fmt_numero_ar(coalesce(v_prod.stock_actual, 0), 3, true)
                 using errcode = 'SV001';
         end if;
 
@@ -119,8 +136,8 @@ begin
 
         if v_es_fiado and coalesce(v_cli.limite_credito, 0) > 0
            and coalesce(v_cli.saldo_deudor, 0) + p_total > v_cli.limite_credito then
-            raise exception '% superaria su limite de credito de $%.',
-                v_cli.nombre, to_char(v_cli.limite_credito, 'FM999G999G990D00')
+            raise exception '% superaria su limite de credito de $ %.',
+                v_cli.nombre, public.fmt_numero_ar(v_cli.limite_credito, 2)
                 using errcode = 'SV002';
         end if;
     end if;

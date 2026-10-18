@@ -23,7 +23,7 @@
 --     desharía el contador de intentos y se podría adivinar el PIN sin bloqueo.
 --   * Los contadores de ID NO se reinician: con varios comercios en la misma base, volver
 --     a 1 podía chocar con ventas de otro comercio todavía sin confirmar (clave duplicada).
---   * Toma pg_advisory_xact_lock(comercio_id), el mismo lock que registrar_venta_atomica:
+--   * Toma pg_advisory_xact_lock('control_stock.comercio', comercio_id), el mismo lock que registrar_venta_atomica:
 --     una venta del comercio no puede quedar a medio registrar durante el reset.
 --
 -- Devuelve jsonb: { ok: true, modo, detalle_ventas, movimientos_cuenta, ventas,
@@ -70,7 +70,7 @@ begin
     v_res := jsonb_build_object('ok', true, 'modo', p_modo);
 
     -- Un reset por comercio a la vez y sin ventas del comercio a medio registrar
-    perform pg_advisory_xact_lock(p_comercio_id);
+    perform pg_advisory_xact_lock(hashtext('control_stock.comercio'), p_comercio_id::int);
 
     -- ---------- Movimientos (orden respetando claves foráneas) ----------
     delete from detalle_ventas
