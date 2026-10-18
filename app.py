@@ -34,8 +34,6 @@ importlib.reload(reportes)
 from config_manager import (
     cargar_configuracion,
     guardar_configuracion,
-    validar_clave_admin,
-    cambiar_clave_admin
 )
 
 # Configuración del directorio base
@@ -46,7 +44,7 @@ st.set_page_config(
     page_title="Sistema de Gestión Comercial",
     page_icon="🏪",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"  # abierto en PC, cerrado en celular
 )
 
 
@@ -224,6 +222,14 @@ st.markdown("""
         white-space: nowrap;
         min-width: 90px;
         text-align: right;
+    }
+
+    /* Celular: títulos más chicos y menos margen para que entre más contenido */
+    @media (max-width: 640px) {
+        h1 { font-size: 1.6rem !important; }
+        h2 { font-size: 1.3rem !important; }
+        h3 { font-size: 1.1rem !important; }
+        [data-testid="stMainBlockContainer"] { padding-left: 1rem !important; padding-right: 1rem !important; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -2767,28 +2773,6 @@ elif modulo == "⚙️ Configuración del Negocio":
                 st.rerun()
             else:
                 st.error("Error al persistir la configuración.")
-
-    st.markdown("---")
-
-    # PANEL: CAMBIAR CONTRASEÑA DE DUEÑO / ADMINISTRADOR
-    st.subheader("🔑 Clave de Dueño / Administrador")
-    with st.expander("Cambiar Contraseña de Dueño / Administrador", expanded=False):
-        st.caption("Clave heredada de versiones anteriores. El vaciado de datos ahora se autoriza con el PIN del Dueño.")
-        with st.form("form_cambiar_clave_admin"):
-            col_k1, col_k2 = st.columns(2)
-            with col_k1:
-                clave_actual_in = st.text_input("Contraseña Actual *", type="password", placeholder="Clave actual...")
-            with col_k2:
-                clave_nueva_in = st.text_input("Nueva Contraseña *", type="password", placeholder="Mínimo 4 caracteres...")
-
-            btn_guardar_clave = st.form_submit_button("💾 Actualizar Contraseña de Dueño", type="primary")
-            if btn_guardar_clave:
-                exito, msg = cambiar_clave_admin(clave_actual_in, clave_nueva_in)
-                if exito:
-                    st.success(f"✅ {msg}")
-                    st.rerun()
-                else:
-                    st.error(f"❌ {msg}")
 
     st.markdown("---")
 
