@@ -517,7 +517,7 @@ def _pantalla_login():
 
         with st.form("form_login", clear_on_submit=True):
             pin_txt = st.text_input("Ingrese su PIN", type="password", max_chars=4)
-            if st.form_submit_button("Ingresar", type="primary", use_container_width=True):
+            if st.form_submit_button("Ingresar", type="primary", width="stretch"):
                 if not pin_txt:
                     st.session_state["login_error"] = "⚠️ El PIN no puede estar vacío."
                     st.rerun()
@@ -534,7 +534,7 @@ def _pantalla_cambio_pin_obligatorio(usuario):
         with st.form("form_pin_obligatorio", clear_on_submit=True):
             pin_actual_in = st.text_input("PIN actual", type="password", max_chars=4)
             pin_nuevo_in = st.text_input("PIN nuevo (4 dígitos)", type="password", max_chars=4)
-            if st.form_submit_button("Guardar y entrar", type="primary", use_container_width=True):
+            if st.form_submit_button("Guardar y entrar", type="primary", width="stretch"):
                 try:
                     models.cambiar_pin(usuario["id"], pin_actual_in, pin_nuevo_in)
                     usuario["debe_cambiar_pin"] = False
@@ -543,7 +543,7 @@ def _pantalla_cambio_pin_obligatorio(usuario):
                     st.error(str(e))
                 except Exception as e:
                     st.error(f"⚠️ {e}")
-        st.button("Cerrar sesión", on_click=_cerrar_sesion, use_container_width=True)
+        st.button("Cerrar sesión", on_click=_cerrar_sesion, width="stretch")
 
 
 if not st.session_state.get("usuario"):
@@ -567,7 +567,7 @@ logo_sidebar = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path
 if logo_sidebar:
     col_l1, col_l2, col_l3 = st.sidebar.columns([1, 1.5, 1])
     with col_l2:
-        st.image(logo_sidebar, use_container_width=True)
+        st.image(logo_sidebar, width="stretch")
     st.sidebar.markdown(f"<h1 style='text-align: center; margin-top: -15px;'>{config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>", unsafe_allow_html=True)
 else:
     st.sidebar.title(f"🏪 {config_negocio.get('nombre_negocio', 'Mi Comercio')}")
@@ -577,12 +577,12 @@ st.sidebar.markdown(
     f"👤 **{usuario_actual.get('nombre', '')}** · "
     f"{models.ROL_ETIQUETAS.get(usuario_actual.get('rol'), 'Cajero')}"
 )
-st.sidebar.button("🚪 Cerrar Sesión", key="btn_logout", use_container_width=True, on_click=_cerrar_sesion)
+st.sidebar.button("🚪 Cerrar Sesión", key="btn_logout", width="stretch", on_click=_cerrar_sesion)
 with st.sidebar.expander("🔑 Cambiar mi PIN"):
     with st.form("form_cambiar_pin", clear_on_submit=True):
         pin_actual_in = st.text_input("PIN actual", type="password", max_chars=4)
         pin_nuevo_in = st.text_input("PIN nuevo (4 dígitos)", type="password", max_chars=4)
-        if st.form_submit_button("Guardar PIN", use_container_width=True):
+        if st.form_submit_button("Guardar PIN", width="stretch"):
             try:
                 models.cambiar_pin(usuario_actual["id"], pin_actual_in, pin_nuevo_in)
                 st.success("✅ PIN actualizado.")
@@ -689,7 +689,7 @@ if modulo == "🛒 Punto de Venta (POS)":
             )
         with col_scan_btn:
             st.write("")
-            btn_scan = st.form_submit_button("⚡ Cargar por Código", use_container_width=True)
+            btn_scan = st.form_submit_button("⚡ Cargar por Código", width="stretch")
 
         if btn_scan and barcode_in:
             prod_esc = models.obtener_producto_por_codigo(barcode_in)
@@ -890,16 +890,16 @@ if modulo == "🛒 Punto de Venta (POS)":
                         c_q1, c_q2 = st.columns(2)
                         c_q3, c_q4 = st.columns(2)
                         with c_q1:
-                            st.button("250 g", key="btn_q_250", use_container_width=True,
+                            st.button("250 g", key="btn_q_250", width="stretch",
                                       on_click=_set_pos_cant, args=(0.250,))
                         with c_q2:
-                            st.button("500 g", key="btn_q_500", use_container_width=True,
+                            st.button("500 g", key="btn_q_500", width="stretch",
                                       on_click=_set_pos_cant, args=(0.500,))
                         with c_q3:
-                            st.button("1 kg", key="btn_q_1kg", use_container_width=True,
+                            st.button("1 kg", key="btn_q_1kg", width="stretch",
                                       on_click=_set_pos_cant, args=(1.000,))
                         with c_q4:
-                            st.button("+1", key="btn_q_plus1", use_container_width=True,
+                            st.button("+1", key="btn_q_plus1", width="stretch",
                                       on_click=_sumar_pos_cant, args=(1.0,))
 
                         # Reseteo pendiente tras agregar al carrito (o key perdida): debe
@@ -931,7 +931,7 @@ if modulo == "🛒 Punto de Venta (POS)":
 
                 with col_btn:
                     deshabilitar_agregar = (disponible_para_agregar <= 0) or (cantidad <= 0)
-                    if st.button("➕ AGREGAR AL CARRITO", type="primary", disabled=deshabilitar_agregar, use_container_width=True):
+                    if st.button("➕ AGREGAR AL CARRITO", type="primary", disabled=deshabilitar_agregar, width="stretch"):
                         if disponible_para_agregar <= 0:
                             st.error("No hay más unidades disponibles de este producto.")
                         elif cantidad <= 0:
@@ -1026,18 +1026,18 @@ if modulo == "🛒 Punto de Venta (POS)":
                         data=tk["pdf_bytes"],
                         file_name=f"ticket_{tk['venta_id']}.pdf",
                         mime="application/pdf",
-                        use_container_width=True
+                        width="stretch"
                     )
                 with c_wa:
                     tel = tk.get("cliente_telefono")
                     if tel:
                         msg_whatsapp = reportes.armar_mensaje_whatsapp_ticket(tk)
                         wa_url = reportes.armar_url_whatsapp(tel, msg_whatsapp)
-                        st.link_button("📲 Enviar por WhatsApp", url=wa_url, use_container_width=True)
+                        st.link_button("📲 Enviar por WhatsApp", url=wa_url, width="stretch")
                     else:
                         st.caption("ℹ️ Sin teléfono para WhatsApp")
 
-                if st.button("✖️ Cerrar Comprobante", key="btn_cerrar_tk", use_container_width=True):
+                if st.button("✖️ Cerrar Comprobante", key="btn_cerrar_tk", width="stretch"):
                     del st.session_state["ultimo_ticket"]
                     st.rerun()
 
@@ -1084,7 +1084,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                         c_canje_act, c_canje_txt = st.columns([1.5, 2.5], gap="small")
                         with c_canje_act:
                             if not es_canje_item:
-                                if st.button("🎁 Canjear con Puntos", key=f"btn_canje_{idx}", use_container_width=True):
+                                if st.button("🎁 Canjear con Puntos", key=f"btn_canje_{idx}", width="stretch"):
                                     if not cliente_pos:
                                         st.warning("⚠️ Debés seleccionar un cliente registrado arriba para canjear con puntos.")
                                     else:
@@ -1105,7 +1105,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                                             st.toast(f"🎁 Canje activado para {item['nombre']} ({pts_tot_item} pts)", icon="🎉")
                                             st.rerun()
                             else:
-                                if st.button("↩️ Cancelar Canje", key=f"btn_cancel_canje_{idx}", use_container_width=True):
+                                if st.button("↩️ Cancelar Canje", key=f"btn_cancel_canje_{idx}", width="stretch"):
                                     item["es_canje"] = False
                                     p_orig = float(item.get("precio_original") or 0.0)
                                     item["precio_unitario"] = p_orig
@@ -1150,7 +1150,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                     with col_qr_vista:
                         qr_abs = obtener_ruta_imagen_absoluta(config_negocio.get("qr_imagen_path"))
                         if qr_abs:
-                            st.image(qr_abs, caption="Escanear Código QR", use_container_width=True)
+                            st.image(qr_abs, caption="Escanear Código QR", width="stretch")
                         else:
                             st.info("Sin QR cargado en Configuración.")
                     with col_banco_vista:
@@ -1215,12 +1215,12 @@ if modulo == "🛒 Punto de Venta (POS)":
             st.write("")
             col_btn_vender, col_btn_vaciar = st.columns([2.5, 1], gap="small")
             with col_btn_vaciar:
-                if st.button("🗑️ Vaciar", use_container_width=True):
+                if st.button("🗑️ Vaciar", width="stretch"):
                     st.session_state.carrito = []
                     st.rerun()
             with col_btn_vender:
                 boton_deshabilitado = bloquear_venta_fiado or bloquear_canje_puntos
-                if st.button(f"✅ CONFIRMAR Y COBRAR ({fmt_moneda_md(total_venta)})", type="primary", disabled=boton_deshabilitado, use_container_width=True):
+                if st.button(f"✅ CONFIRMAR Y COBRAR ({fmt_moneda_md(total_venta)})", type="primary", disabled=boton_deshabilitado, width="stretch"):
 
                     try:
                         items_venta = [
@@ -1473,7 +1473,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                         "ticket_id": "Ticket #"
                     }
                 )
-                st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+                st.dataframe(df_mostrar, width="stretch", hide_index=True)
 
     # 5. Edición y Baja de Clientes
     if tab_c_edit is not None:  # Solo el Dueño ve esta solapa
@@ -1558,9 +1558,9 @@ elif modulo == "📦 Productos e Inventario":
                 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
-                    simular = st.form_submit_button("🔍 Simular / Previsualizar", use_container_width=True)
+                    simular = st.form_submit_button("🔍 Simular / Previsualizar", width="stretch")
                 with col_btn2:
-                    aplicar = st.form_submit_button("✅ Aplicar Aumento Masivo", type="primary", use_container_width=True)
+                    aplicar = st.form_submit_button("✅ Aplicar Aumento Masivo", type="primary", width="stretch")
 
             cat_id_masiva = opciones_cat_mas[cat_masiva]
             
@@ -1613,7 +1613,7 @@ elif modulo == "📦 Productos e Inventario":
                         
                         if simular:
                             st.markdown(f"**Previsualización de {len(lista_preview)} producto(s) a modificar:**")
-                            st.dataframe(pd.DataFrame(lista_preview), use_container_width=True, hide_index=True)
+                            st.dataframe(pd.DataFrame(lista_preview), width="stretch", hide_index=True)
                             
                         if aplicar:
                             comercio_id_actual = usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
@@ -1646,7 +1646,7 @@ elif modulo == "📦 Productos e Inventario":
                 data=excel_bytes,
                 file_name=f"inventario_productos_{fecha_export}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
+                width="stretch",
                 help="Exportar el inventario completo a un archivo .xlsx"
             )
 
@@ -1662,7 +1662,7 @@ elif modulo == "📦 Productos e Inventario":
                     "precio_venta": "Venta ($)", "stock_actual": "Stock", "stock_minimo": "Mínimo",
                     "puntos_canje": "Puntos Canje"
                 }, inplace=True)
-                st.dataframe(df_prods, use_container_width=True, hide_index=True)
+                st.dataframe(df_prods, width="stretch", hide_index=True)
             elif vista_elegida == "Tarjetas":
                 # Grilla de 3 columnas (st.columns(3))
                 columnas = st.columns(3)
@@ -1671,7 +1671,7 @@ elif modulo == "📦 Productos e Inventario":
                         # Imagen destacada arriba (tamaño mediano/visible)
                         img_prod = obtener_ruta_imagen_absoluta(p.get("imagen_path") or p.get("imagen_url"))
                         if img_prod:
-                            st.image(img_prod, use_container_width=True)
+                            st.image(img_prod, width="stretch")
                         else:
                             st.markdown(
                                 """<div style="height: 140px; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 8px;">
@@ -2140,7 +2140,7 @@ elif modulo == "📦 Productos e Inventario":
             col_save_btn, col_del_btn = st.columns([1.5, 1], gap="medium")
 
             with col_save_btn:
-                if st.button("💾 Guardar Cambios", type="primary", use_container_width=True, key=f"btn_save_{kp}"):
+                if st.button("💾 Guardar Cambios", type="primary", width="stretch", key=f"btn_save_{kp}"):
                     ruta_img_final = None
                     try:
                         if nueva_foto_subida is not None:
@@ -2179,7 +2179,7 @@ elif modulo == "📦 Productos e Inventario":
                 with st.expander("🗑️ Zona de Baja: Eliminar Producto"):
                     st.warning("⚠️ Acción irreversible. No se puede eliminar si posee ventas históricas registradas.")
                     confirmar_del = st.checkbox("Confirmo que deseo eliminar este producto", key=f"chk_del_{pid}")
-                    if st.button("🗑️ Confirmar Eliminación", type="secondary", disabled=not confirmar_del, use_container_width=True, key=f"btn_del_{pid}"):
+                    if st.button("🗑️ Confirmar Eliminación", type="secondary", disabled=not confirmar_del, width="stretch", key=f"btn_del_{pid}"):
                         try:
                             models.eliminar_producto(pid)
                             borrar_archivo_imagen_local(prod_actual.get("imagen_path"))
@@ -2282,7 +2282,7 @@ elif modulo == "📦 Productos e Inventario":
                 "stock_minimo": "Stock Mínimo",
                 "deficit": "Déficit / Faltante"
             })
-            st.dataframe(df_criticos, use_container_width=True, hide_index=True)
+            st.dataframe(df_criticos, width="stretch", hide_index=True)
 
     # 6. Carga Masiva de Productos (Excel / CSV)
     with tab_masiva:
@@ -2304,7 +2304,7 @@ elif modulo == "📦 Productos e Inventario":
                     data=plantilla_bytes,
                     file_name="plantilla_productos_ejemplo.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
+                    width="stretch"
                 )
 
         with col_p2:
@@ -2411,7 +2411,7 @@ elif modulo == "📦 Productos e Inventario":
                                 st.caption(f"...y {len(errores_validacion) - 10} observaciones más.")
 
                     st.markdown("**Vista previa del archivo cargado:**")
-                    st.dataframe(df_cargado, use_container_width=True, hide_index=False)
+                    st.dataframe(df_cargado, width="stretch", hide_index=False)
 
                     st.markdown("---")
                     st.markdown("#### ✅ Paso 4: Confirmación")
@@ -2420,7 +2420,7 @@ elif modulo == "📦 Productos e Inventario":
                     btn_confirmar = st.button(
                         "Confirmar e Importar a Base de Datos",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
                         key="btn_confirmar_carga_masiva"
                     )
 
@@ -2553,7 +2553,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
             "fecha": "Hora", "tipo": "Tipo", "concepto": "Concepto", 
             "monto": "Monto", "usuario_nombre": "Responsable"
         })
-        st.dataframe(df_movs, use_container_width=True, hide_index=True)
+        st.dataframe(df_movs, width="stretch", hide_index=True)
 
     st.markdown("---")
 
@@ -2581,7 +2581,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
     col_cierre_btn, _ = st.columns([1.5, 1])
     with col_cierre_btn:
         sin_ventas = resumen["total_operaciones"] == 0
-        ejecutar_cierre = st.button("🔒 Realizar Cierre de Caja del Día", type="primary", use_container_width=True, disabled=sin_ventas)
+        ejecutar_cierre = st.button("🔒 Realizar Cierre de Caja del Día", type="primary", width="stretch", disabled=sin_ventas)
         if sin_ventas:
             st.caption("No hay ventas para cerrar en esta fecha.")
 
@@ -2609,7 +2609,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                     data=pdf_bytes,
                     file_name=f"Cierre_Caja_{fecha_elegida.strftime('%Y-%m-%d')}.pdf",
                     mime="application/pdf",
-                    use_container_width=True
+                    width="stretch"
                 )
 
             with col_acc2:
@@ -2619,12 +2619,12 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                     nombre_negocio=nombre_neg
                 )
                 url_wsp = reportes.armar_url_whatsapp(None, msg_wsp)
-                st.link_button("📲 Compartir Cierre por WhatsApp", url_wsp, use_container_width=True)
+                st.link_button("📲 Compartir Cierre por WhatsApp", url_wsp, width="stretch")
 
             with col_acc3:
                 email_dest = config_negocio.get("email_destinatario", "").strip()
                 if email_dest and config_negocio.get("smtp_usuario") and config_negocio.get("smtp_password"):
-                    if st.button("✉️ Enviar / Reenviar por Email", use_container_width=True):
+                    if st.button("✉️ Enviar / Reenviar por Email", width="stretch"):
                         exito, mensaje = reportes.enviar_email_cierre(
                             destinatario=email_dest,
                             pdf_bytes=pdf_bytes,
@@ -2669,12 +2669,12 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                     "total": "Total ($)"
                 }
             )
-            st.dataframe(df_desglose, use_container_width=True, hide_index=True)
+            st.dataframe(df_desglose, width="stretch", hide_index=True)
             chart = alt.Chart(df_desglose).mark_bar(color="#3b82f6", cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
                 x=alt.X("Forma de Pago", axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Total ($)")
             )
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width="stretch")
         else:
             st.info("No hay ventas registradas en esta fecha.")
 
@@ -2700,7 +2700,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                                 "subtotal": "Subtotal"
                             }
                         )
-                        st.dataframe(df_det, use_container_width=True, hide_index=True)
+                        st.dataframe(df_det, width="stretch", hide_index=True)
         else:
             st.info("Sin registros de tickets para la fecha seleccionada.")
 
@@ -2728,7 +2728,7 @@ elif modulo == "⚙️ Configuración del Negocio":
             if logo_actual_abs:
                 c_l1, c_l2, c_l3 = st.columns([1, 1.5, 2.5])
                 with c_l1:
-                    st.image(logo_actual_abs, caption="Logo actual", use_container_width=True)
+                    st.image(logo_actual_abs, caption="Logo actual", width="stretch")
                 with c_l2:
                     st.write("")
                     st.write("")
@@ -2827,7 +2827,7 @@ elif modulo == "⚙️ Configuración del Negocio":
                 data=backup_json_str,
                 file_name=nombre_archivo_backup,
                 mime="application/json",
-                use_container_width=True,
+                width="stretch",
                 help="Haz clic para descargar la copia de seguridad de la base de datos."
             )
 
@@ -2870,7 +2870,7 @@ elif modulo == "⚙️ Configuración del Negocio":
                         "🔄 Restaurar Base de Datos",
                         type="primary",
                         disabled=not chk_restaurar,
-                        use_container_width=True,
+                        width="stretch",
                         key="btn_restaurar_backup"
                     )
 
@@ -2971,7 +2971,7 @@ elif modulo == "⚙️ Configuración del Negocio":
                 "💣 BORRAR DATOS AHORA",
                 type="primary",
                 disabled=not rst_habilitado,
-                use_container_width=True,
+                width="stretch",
                 key=f"rst_btn_{ver_reset}",
             )
 
