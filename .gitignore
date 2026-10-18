@@ -30,3 +30,6 @@ Thumbs.db
 
 # Scripts de fix temporales
 fix*.py
+
+# Capturas y logs de Playwright MCP
+.playwright-mcp/
