@@ -31,7 +31,7 @@ import models
 importlib.reload(models)
 import reportes
 importlib.reload(reportes)
-from formato import fmt_moneda, fmt_moneda_md, fmt_cantidad, fmt_puntos, fmt_fecha
+from formato import fmt_moneda, fmt_moneda_md, fmt_cantidad, fmt_puntos, fmt_fecha, formatear_df
 from config_manager import (
     cargar_configuracion,
     guardar_configuracion,
@@ -1014,7 +1014,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
         cliente_pos_id = cliente_pos["id"] if cliente_pos else None
 
         if cliente_pos_id:
-            pts_actual = int(round(float(cliente_pos.get('puntos') or 0)))
+            pts_actual = round(float(cliente_pos.get('puntos') or 0), 2)
             pts_canjes_carrito = sum(
                 int(round(it.get("puntos_canje", 0) * it.get("cantidad", 1)))
                 for it in st.session_state.carrito if it.get("es_canje")
@@ -1116,7 +1116,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                                     if not cliente_pos:
                                         st.warning("⚠️ Debés seleccionar un cliente registrado arriba para canjear con puntos.")
                                     else:
-                                        pts_cli = int(round(float(cliente_pos.get("puntos") or 0)))
+                                        pts_cli = round(float(cliente_pos.get("puntos") or 0), 2)
                                         otros_canjes = sum(
                                             int(round(it.get("puntos_canje", 0) * it.get("cantidad", 1)))
                                             for i, it in enumerate(st.session_state.carrito)
@@ -1225,7 +1225,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                         st.error("⛔ Para canjear productos con puntos debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
                         bloquear_canje_puntos = True
                     else:
-                        pts_cli = int(round(float(cliente_pos.get("puntos") or 0)))
+                        pts_cli = round(float(cliente_pos.get("puntos") or 0), 2)
                         c_p1, c_p2 = st.columns(2)
                         with c_p1:
                             st.markdown(f"**Puntos Acumulados:** {fmt_puntos(pts_cli)} pts")
@@ -1285,7 +1285,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                             models.obtener_clientes.clear()
                             cli_upd = next((c for c in models.obtener_clientes() if c["id"] == cliente_pos_id), None)
                             if cli_upd:
-                                puntos_balance = int(round(float(cli_upd.get("puntos") or 0)))
+                                puntos_balance = round(float(cli_upd.get("puntos") or 0), 2)
 
                         # Generar comprobante en PDF formato térmico 80 mm
                         datos_tk = {
@@ -1699,7 +1699,10 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                     "precio_venta": "Venta ($)", "stock_actual": "Stock", "stock_minimo": "Mínimo",
                     "puntos_canje": "Puntos Canje"
                 }, inplace=True)
-                st.dataframe(df_prods, width="stretch", hide_index=True)
+                st.dataframe(formatear_df(df_prods, monedas=["Costo ($)", "Venta ($)"],
+                                          cantidades=["Margen (%)", "Stock", "Mínimo"],
+                                          puntos=[c for c in ["Puntos Canje"] if c in df_prods.columns]),
+                             width="stretch", hide_index=True)
             elif vista_elegida == "Tarjetas":
                 # Grilla de 3 columnas (st.columns(3))
                 columnas = st.columns(3)
@@ -2320,7 +2323,8 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                 "stock_minimo": "Stock Mínimo",
                 "deficit": "Déficit / Faltante"
             })
-            st.dataframe(df_criticos, width="stretch", hide_index=True)
+            st.dataframe(formatear_df(df_criticos, cantidades=["Stock Actual", "Stock Mínimo", "Déficit / Faltante"]),
+                         width="stretch", hide_index=True)
 
     # 6. Carga Masiva de Productos (Excel / CSV)
     with tab_masiva:
@@ -2418,14 +2422,14 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         try:
                             pc = float(row.get("precio_costo", 0)) if pd.notna(row.get("precio_costo")) else 0.0
                             if pc < 0:
-                                errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de costo negativo (${pc}).")
+                                errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de costo negativo ({fmt_moneda_md(pc)}).")
                         except (ValueError, TypeError):
                             errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de costo no numérico.")
 
                         try:
                             pv = float(row.get("precio_venta", 0)) if pd.notna(row.get("precio_venta")) else 0.0
                             if pv < 0:
-                                errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de venta negativo (${pv}).")
+                                errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de venta negativo ({fmt_moneda_md(pv)}).")
                         except (ValueError, TypeError):
                             errores_validacion.append(f"Fila {fila_num} ('{nom}'): Precio de venta no numérico.")
 
@@ -2711,7 +2715,7 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
                     "total": "Total ($)"
                 }
             )
-            st.dataframe(df_desglose, width="stretch", hide_index=True)
+            st.dataframe(formatear_df(df_desglose, monedas=["Total ($)"]), width="stretch", hide_index=True)
             chart = alt.Chart(df_desglose).mark_bar(color="#3b82f6", cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
                 x=alt.X("Forma de Pago", axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Total ($)")
@@ -2742,7 +2746,8 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
                                 "subtotal": "Subtotal"
                             }
                         )
-                        st.dataframe(df_det, width="stretch", hide_index=True)
+                        st.dataframe(formatear_df(df_det, monedas=["Precio Unit.", "Subtotal"], cantidades=["Cant."]),
+                                     width="stretch", hide_index=True)
         else:
             st.info("Sin registros de tickets para la fecha seleccionada.")
 

@@ -132,7 +132,7 @@ $$;
 
 -- ---------- RPC: cambiar PIN (4 dígitos numéricos) ----------
 -- Devuelve jsonb { ok, motivo? } con motivo: 'pin_invalido' | 'pin_inseguro' | 'pin_actual_incorrecto'
---                                            | 'usuario_invalido'
+--                                            | 'bloqueado' | 'usuario_invalido'
 create or replace function public.cambiar_pin(p_usuario_id bigint, p_pin_actual text, p_pin_nuevo text)
 returns jsonb
 language plpgsql
@@ -140,7 +140,7 @@ security definer
 set search_path = public
 as $$
 declare
-    v_u usuarios%rowtype;
+    v_login jsonb;
 begin
     if p_pin_nuevo is null or p_pin_nuevo !~ '^[0-9]{4}$' then
         return jsonb_build_object('ok', false, 'motivo', 'pin_invalido');
@@ -149,13 +149,14 @@ begin
         return jsonb_build_object('ok', false, 'motivo', 'pin_inseguro');
     end if;
 
-    select * into v_u from usuarios where id = p_usuario_id and activo for update;
-    if not found then
-        return jsonb_build_object('ok', false, 'motivo', 'usuario_invalido');
-    end if;
-
-    if p_pin_actual is null or v_u.pin_hash <> extensions.crypt(p_pin_actual, v_u.pin_hash) then
-        return jsonb_build_object('ok', false, 'motivo', 'pin_actual_incorrecto');
+    -- El PIN actual se valida con verificar_login: cuenta intentos y bloquea igual que el login,
+    -- así esta función no sirve para adivinar un PIN sin límite.
+    v_login := public.verificar_login(p_usuario_id, p_pin_actual);
+    if not coalesce((v_login ->> 'ok')::boolean, false) then
+        return jsonb_build_object('ok', false, 'motivo',
+                   case v_login ->> 'motivo' when 'pin_incorrecto' then 'pin_actual_incorrecto'
+                                             else v_login ->> 'motivo' end)
+               || (v_login - 'ok' - 'motivo');
     end if;
 
     update usuarios

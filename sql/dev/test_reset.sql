@@ -107,5 +107,15 @@ begin
         'quedaron clientes con saldo o puntos';
 end $$;
 
+-- ---------- Lock de dos claves (no comparte espacio con otros advisory locks de la base) ----------
+do $$
+begin
+    perform public.resetear_datos_comercio(1, 'movimientos', (select usuario_id from _t), '9999');
+    assert exists (select 1 from pg_locks
+                    where locktype = 'advisory' and pid = pg_backend_pid()
+                      and objsubid = 2 and objid = 1),
+        'el reset no tomó el lock de dos claves (namespace, comercio_id)';
+end $$;
+
 \echo 'test_reset: OK'
 rollback;

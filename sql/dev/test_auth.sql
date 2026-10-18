@@ -27,5 +27,20 @@ begin
     assert not (r -> 'usuario' ->> 'debe_cambiar_pin')::boolean, format('con PIN propio pidió cambio: %s', r);
 end $$;
 
+-- cambiar_pin con PIN actual incorrecto cuenta intentos: no sirve para adivinar el PIN sin bloqueo
+insert into public.usuarios (comercio_id, nombre, pin_hash, rol)
+values (1, '__test_auth_bloqueo__', extensions.crypt('4321', extensions.gen_salt('bf')), 'cajero');
+do $$
+declare v_id bigint; r jsonb; i int;
+begin
+    select id into v_id from public.usuarios where nombre = '__test_auth_bloqueo__';
+    for i in 1..5 loop
+        r := public.cambiar_pin(v_id, '0001', '5678');
+    end loop;
+    assert r ->> 'motivo' = 'bloqueado', format('5 PIN actuales incorrectos no bloquearon: %s', r);
+    r := public.verificar_login(v_id, '4321');
+    assert r ->> 'motivo' = 'bloqueado', format('el usuario no quedó bloqueado: %s', r);
+end $$;
+
 \echo 'test_auth: OK'
 rollback;

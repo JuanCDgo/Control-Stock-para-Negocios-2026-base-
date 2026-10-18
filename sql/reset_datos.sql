@@ -25,7 +25,7 @@
 --   * Todo ocurre en una sola transacción: si algo falla, no cambia NADA.
 --   * Un PIN incorrecto NO lanza excepción (devuelve ok=false): si lo hiciera, el rollback
 --     desharía el contador de intentos y se podría adivinar el PIN sin bloqueo.
---   * Toma pg_advisory_xact_lock(comercio_id), el mismo lock que registrar_venta_atomica:
+--   * Toma pg_advisory_xact_lock('control_stock.comercio', comercio_id), el mismo lock que registrar_venta_atomica:
 --     una venta del comercio no puede quedar a medio registrar durante el reset.
 --
 -- Devuelve jsonb: { ok: true, modo, ventas, movimientos_cuenta, [movimientos_caja],
@@ -69,7 +69,7 @@ begin
     v_res := jsonb_build_object('ok', true, 'modo', p_modo);
 
     -- Un reset por comercio a la vez y sin ventas del comercio a medio registrar
-    perform pg_advisory_xact_lock(p_comercio_id);
+    perform pg_advisory_xact_lock(hashtext('control_stock.comercio'), p_comercio_id::int);
 
     -- ---------- Historial: se archiva ----------
     foreach v_t in array array['ventas', 'movimientos_cuenta', 'movimientos_caja'] loop
