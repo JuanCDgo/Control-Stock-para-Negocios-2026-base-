@@ -165,3 +165,28 @@ def test_reactivar_producto_reactiva_su_categoria(comercio_test):
 
     assert cat_id in [c["id"] for c in models.get_categorias(comercio_id=comercio_test)], \
         "el producto volvió en una categoría dada de baja"
+
+
+def test_renombrar_categoria_al_nombre_de_una_de_baja_pide_reactivar(comercio_test):
+    nombre_baja = _unico("CatBaja")
+    cat_baja = models.crear_categoria(nombre_baja, comercio_id=comercio_test)
+    models.eliminar_categoria(cat_baja, comercio_id=comercio_test)
+    otra = models.crear_categoria(_unico("CatOtra"), comercio_id=comercio_test)
+
+    with pytest.raises(models.BusinessLogicError, match="reactivala"):
+        models.actualizar_categoria(otra, nombre_baja, comercio_id=comercio_test)
+
+
+def test_restaurar_respaldo_viejo_desarchiva_caja_chica(comercio_test):
+    # movimientos_caja tiene id GENERATED ALWAYS: el restore va por el camino que compara
+    # (fecha, monto, concepto) en vez de hacer upsert por id
+    concepto = _unico("caja")
+    mid = _psql_valor(f"insert into movimientos_caja (comercio_id, tipo, monto, concepto, archivado_en) "
+                      f"values ({comercio_test}, 'egreso', 12, '{concepto}', now()) returning id").splitlines()[0]
+    fila = models.get_connection().table("movimientos_caja").select("id, tipo, monto, concepto, fecha") \
+        .eq("id", int(mid)).execute().data[0]
+
+    assert models.restaurar_backup_completo({"tablas": {"movimientos_caja": [fila]}}, comercio_id=comercio_test)["ok"]
+
+    assert _psql_valor(f"select archivado_en is null from movimientos_caja where id = {mid}") == "t"
+    assert _psql_valor(f"select count(*) from movimientos_caja where concepto = '{concepto}'") == "1", "duplicó el movimiento"

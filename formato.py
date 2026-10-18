@@ -2,7 +2,18 @@
 Formato de números para Argentina: punto de miles y coma decimal.
 Se arma a mano (sin `locale`) porque `locale` depende de lo instalado en el sistema.
 """
+from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+ZONA_AR = ZoneInfo("America/Argentina/Buenos_Aires")
+
+
+def fmt_fecha(iso: Optional[str]) -> str:
+    """'2026-10-19T01:30:00+00:00' (timestamptz de la base) -> '18/10/2026' en hora argentina."""
+    if not iso:
+        return "-"
+    return datetime.fromisoformat(str(iso)).astimezone(ZONA_AR).strftime("%d/%m/%Y")
 
 
 def _swap(texto: str) -> str:

@@ -73,8 +73,9 @@ begin
 
     -- ---------- Historial: se archiva ----------
     foreach v_t in array array['ventas', 'movimientos_cuenta', 'movimientos_caja'] loop
-        -- movimientos_caja la crea caja_chica.sql (opcional)
-        if exists (
+        -- Solo movimientos_caja es opcional (la crea caja_chica.sql). Si a ventas o
+        -- movimientos_cuenta les falta archivado_en, el update falla: falta correr 00_esquema_base.sql.
+        if v_t <> 'movimientos_caja' or exists (
             select 1 from information_schema.columns
              where table_schema = 'public' and table_name = v_t and column_name = 'archivado_en'
         ) then

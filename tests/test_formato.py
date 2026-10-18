@@ -27,3 +27,12 @@ def test_moneda_md_escapa_el_signo_para_markdown():
     from formato import fmt_moneda_md
     assert fmt_moneda_md(2295) == r"\$ 2.295,00"
     assert fmt_moneda_md(-1500) == r"-\$ 1.500,00"
+
+
+def test_fecha_en_hora_argentina():
+    from formato import fmt_fecha
+    # 01:30 UTC del 19 = 22:30 del 18 en Argentina (UTC-3)
+    assert fmt_fecha("2026-10-19T01:30:00+00:00") == "18/10/2026"
+    assert fmt_fecha("2026-10-18T15:00:00.123456+00:00") == "18/10/2026"
+    assert fmt_fecha(None) == "-"
+    assert fmt_fecha("") == "-"
