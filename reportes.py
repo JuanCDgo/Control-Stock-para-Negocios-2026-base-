@@ -548,16 +548,35 @@ def armar_mensaje_whatsapp_cierre(
     return "\n".join(lineas)
 
 
+def normalizar_tel_ar(telefono: Optional[str]) -> Optional[str]:
+    """
+    Celular argentino en formato WhatsApp (549 + característica + número, 13 dígitos).
+    Acepta '351 5987654', '0351 15 412-3456', '+54 9 351 ...'. Devuelve None si no se puede
+    armar un número completo (ej. '15 4123456' sin característica): mejor no linkear que
+    mandar a un número equivocado.
+    """
+    d = re.sub(r"\D", "", str(telefono or ""))
+    if d.startswith("54"):
+        d = d[2:]
+        if len(d) == 11 and d.startswith("9"):
+            d = d[1:]
+    d = d.lstrip("0")
+    if len(d) == 12:
+        # Característica de 2 a 4 dígitos seguida del "15" de celular local
+        # ponytail: heurística; no distingue una característica que termine en 15
+        for largo_area in (2, 3, 4):
+            if d[largo_area:largo_area + 2] == "15":
+                d = d[:largo_area] + d[largo_area + 2:]
+                break
+    return f"549{d}" if len(d) == 10 else None
+
+
 def armar_url_whatsapp(telefono: Optional[str], mensaje: str) -> str:
     """
-    Limpia el teléfono a formato internacional y retorna el enlace wa.me 
-    con codificación de texto limpia y segura para URL.
+    Enlace wa.me con el texto codificado para URL. Si el teléfono no se puede normalizar,
+    el enlace no lleva número y WhatsApp deja elegir el contacto.
     """
-    tel_limpio = re.sub(r"\D", "", str(telefono or ""))
-    if len(tel_limpio) == 10:
-        tel_limpio = f"549{tel_limpio}"
-    elif len(tel_limpio) > 0 and not tel_limpio.startswith("54"):
-        tel_limpio = f"54{tel_limpio}"
+    tel_limpio = normalizar_tel_ar(telefono)
 
     texto_encoded = urllib.parse.quote(mensaje, safe="")
     if tel_limpio:

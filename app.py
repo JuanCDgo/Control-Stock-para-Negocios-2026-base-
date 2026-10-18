@@ -1340,7 +1340,10 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                     c1, c2, c3, c4 = st.columns([2, 1.5, 1.5, 1.5])
                     with c1:
                         st.markdown(f"### {c['nombre']}")
-                        tel_txt = f"[{c['telefono']}]({reportes.armar_url_whatsapp(c['telefono'], '')})" if c['telefono'] else "Sin teléfono"
+                        tel_txt = c['telefono'] or "Sin teléfono"
+                        if reportes.normalizar_tel_ar(c['telefono']):  # sin número completo, sin link
+                            tel_vis = str(c['telefono']).replace('[', '').replace(']', '')
+                            tel_txt = f"[{tel_vis}]({reportes.armar_url_whatsapp(c['telefono'], '')})"
                         st.caption(f"📞 Tel: {tel_txt} | ✉️ {c['email'] or 'Sin correo'}")
                     with c2:
                         limite_txt = f"{fmt_moneda_md(c['limite_credito'])}" if c['limite_credito'] > 0 else "Sin límite"
