@@ -5,7 +5,7 @@ Organizado en 6 módulos principales:
 2. :material/group: Cuentas Corrientes / Clientes ("La Libreta" de fiados, abonos y límites)
 3. :material/inventory_2: Productos e Inventario (Catálogo, Carga con Fotos, Edición Completa, Ajustes y Alertas)
 4. :material/sell: Categorías
-5. 📊 Arqueo de Caja y Cierre Diario en PDF / WhatsApp / Correo
+5. Arqueo de Caja y Cierre Diario en PDF / WhatsApp / Correo
 6. :material/settings: Configuración del Negocio (Datos Bancarios, QR y SMTP)
 """
 import os
@@ -43,7 +43,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Configuración general de la página Streamlit
 st.set_page_config(
     page_title="Sistema de Gestión Comercial",
-    page_icon="🏪",
+    page_icon=":material/storefront:",
     layout="wide",
     initial_sidebar_state="collapsed"  # la navegación está en la barra superior
 )
@@ -210,6 +210,9 @@ st.markdown(
         max-width: 1280px !important;
     }
 
+    /* Separadores con menos aire: los de Streamlit dejan bandas vacías muy grandes */
+    hr { margin: 0.75rem 0 !important; }
+
     /* Objetivo táctil mínimo de 44px en todos los botones */
     button[kind="primary"], button[kind="primaryFormSubmit"],
     button[kind="secondary"], button[kind="secondaryFormSubmit"] {
@@ -229,9 +232,18 @@ st.markdown(
         *, *::before, *::after { transition: none !important; animation: none !important; }
     }
 
-    /* Celular: campos con letra de 16px para que iOS no haga zoom al tocarlos */
+    /* Celular: campos con letra de 16px para que iOS no haga zoom al tocarlos,
+       y las filas de métricas en grilla de 2x2 en vez de una columna larga */
     @media (max-width: 640px) {
         input, textarea { font-size: 16px !important; }
+        [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [data-testid="stMetric"]) {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+        }
+        [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [data-testid="stMetric"]) > [data-testid="stColumn"] {
+            flex: 1 1 calc(50% - 0.5rem) !important;
+            min-width: calc(50% - 0.5rem) !important;
+        }
     }
     </style>
     """,
@@ -418,7 +430,7 @@ def _intentar_login(usuario_id, pin):
         with st.spinner("Verificando PIN..."):
             usuario, error = models.verificar_login(usuario_id, pin)
     except Exception as e:
-        usuario, error = None, f"⚠️ {e}"
+        usuario, error = None, f"{e}"
     if usuario:
         st.session_state["usuario"] = usuario
     else:
@@ -441,7 +453,7 @@ def _pantalla_login():
     try:
         usuarios = models.listar_usuarios_login()
     except Exception as e:
-        st.error(f"⚠️ {e}")
+        st.error(f"{e}")
         st.stop()
     if not usuarios:
         st.warning("No hay usuarios activos configurados. Ejecutá sql/usuarios_auth.sql en Supabase.")
@@ -450,17 +462,17 @@ def _pantalla_login():
     _, centro, _ = st.columns([1, 1.4, 1])
     with centro:
         st.markdown(
-            f"<h1 style='text-align:center; margin-bottom:0;'>🏬 {config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>"
+            f"<h1 style='text-align:center; margin-bottom:0;'>{config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>"
             "<p style='text-align:center; color:#64748B;'>Elegí tu usuario e ingresá tu PIN</p>",
             unsafe_allow_html=True,
         )
 
-        iconos = {models.ROL_ADMIN: "👑", models.ROL_CAJERO: "👤"}
+        iconos = {models.ROL_ADMIN: ":material/shield_person:", models.ROL_CAJERO: ":material/person:"}
         por_id = {u["id"]: u for u in usuarios}
         usuario_id = st.radio(
             "Usuario",
             options=list(por_id.keys()),
-            format_func=lambda i: f"{iconos.get(por_id[i]['rol'], '👤')} {por_id[i]['nombre']}",
+            format_func=lambda i: f"{iconos.get(por_id[i]['rol'], ':material/person:')} {por_id[i]['nombre']}",
             horizontal=True,
             key="login_usuario_id"
         )
@@ -473,7 +485,7 @@ def _pantalla_login():
             pin_txt = st.text_input("Ingrese su PIN", type="password", max_chars=4)
             if st.form_submit_button("Ingresar", type="primary", width="stretch"):
                 if not pin_txt:
-                    st.session_state["login_error"] = "⚠️ El PIN no puede estar vacío."
+                    st.session_state["login_error"] = "El PIN no puede estar vacío."
                     st.rerun()
                 else:
                     _intentar_login(usuario_id, pin_txt)
@@ -483,7 +495,7 @@ def _pantalla_cambio_pin_obligatorio(usuario):
     """Quien entró con un PIN de ejemplo (1234 / 0000) elige uno propio antes de seguir."""
     _, centro, _ = st.columns([1, 1.4, 1])
     with centro:
-        st.markdown("### 🔑 Elegí tu PIN")
+        st.markdown("### Elegí tu PIN")
         st.warning("Entraste con un PIN de ejemplo. Por seguridad, elegí uno propio para continuar.")
         with st.form("form_pin_obligatorio", clear_on_submit=True):
             pin_actual_in = st.text_input("PIN actual", type="password", max_chars=4)
@@ -496,7 +508,7 @@ def _pantalla_cambio_pin_obligatorio(usuario):
                 except models.BusinessLogicError as e:
                     st.error(str(e))
                 except Exception as e:
-                    st.error(f"⚠️ {e}")
+                    st.error(f"{e}")
         st.button("Cerrar sesión", on_click=_cerrar_sesion, width="stretch")
 
 
@@ -619,11 +631,11 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
         if btn_scan and barcode_in:
             prod_esc = models.obtener_producto_por_codigo(barcode_in)
             if not prod_esc:
-                st.error(f"❌ Código '{barcode_in}' no registrado en el catálogo.")
+                st.error(f"Código '{barcode_in}' no registrado en el catálogo.")
             else:
                 cant_en_cart = sum(it["cantidad"] for it in st.session_state.carrito if it["producto_id"] == prod_esc["id"])
                 if prod_esc["stock_actual"] - cant_en_cart <= 0:
-                    st.error(f"❌ Stock insuficiente para '{prod_esc['nombre']}' (Stock actual: {prod_esc['stock_actual']}).")
+                    st.error(f"Stock insuficiente para '{prod_esc['nombre']}' (Stock actual: {prod_esc['stock_actual']}).")
                 else:
                     encontrado = False
                     for it in st.session_state.carrito:
@@ -645,7 +657,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                             "es_canje": False,
                             "precio_original": prod_esc["precio_venta"]
                         })
-                    st.toast(f"🛒 Agregado: {prod_esc['nombre']} x1 ({fmt_moneda_md(prod_esc['precio_venta'])})", icon="📦")
+                    st.toast(f"Agregado: {prod_esc['nombre']} x1 ({fmt_moneda_md(prod_esc['precio_venta'])})", icon=":material/shopping_cart:")
                     st.rerun()
 
     col_izq, col_der = st.columns([1, 1], gap="large")
@@ -655,7 +667,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
 
         productos_db = models.obtener_productos()
         if len(productos_db) == 0:
-            st.warning("⚠️ No hay productos registrados. Por favor, agregue productos en la sección de Inventario.")
+            st.warning("No hay productos registrados. Por favor, agregue productos en la sección de Inventario.")
         else:
             prods_todos = productos_db.to_dict('records') if hasattr(productos_db, "to_dict") else productos_db
 
@@ -766,7 +778,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                         )
                         if monto and monto > 0 and prod_info["precio_venta"] > 0:
                             cantidad = round(monto / prod_info["precio_venta"], 4)
-                            st.info(f"⚖️ Equivale a **{fmt_cantidad(cantidad)}** unidades/kg")
+                            st.info(f"Equivale a **{fmt_cantidad(cantidad)}** unidades/kg")
                         else:
                             cantidad = 0.0
 
@@ -802,7 +814,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                             # fue instanciado en este run, así que no se puede tocar su key
                             # acá: se deja una bandera que se aplica ANTES de dibujarlo.
                             st.session_state["_pos_reset_cant"] = True
-                            st.toast(f"✅ Agregado: {prod_info['nombre']} x{fmt_cantidad(cantidad)} ({fmt_moneda_md(cantidad * prod_info['precio_venta'])})", icon="🛒")
+                            st.toast(f"Agregado: {prod_info['nombre']} x{fmt_cantidad(cantidad)} ({fmt_moneda_md(cantidad * prod_info['precio_venta'])})", icon="")
                             st.rerun()
 
     # Panel derecho: Carrito de compras, Selector de Cliente, Medio de pago y Cobro
@@ -841,12 +853,12 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                 f"""
                 <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 9px; padding: 10px 14px; margin: 8px 0 12px 0;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 700; color: #1E3A8A; font-size: 0.95rem;">⭐ Club de Puntos: {cliente_pos['nombre']}</span>
+                        <span style="font-weight: 700; color: #1E3A8A; font-size: 0.95rem;">Club de Puntos: {cliente_pos['nombre']}</span>
                         <span style="background: #2563EB; color: white; padding: 2px 10px; border-radius: 12px; font-weight: 800; font-size: 0.95rem;">{fmt_puntos(pts_actual)} pts</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 0.82rem; color: #1E40AF;">
-                        <span>🎁 Canjes en carrito: <b>{fmt_puntos(pts_canjes_carrito)} pts</b></span>
-                        <span>✨ Saldo disponible: <b style="color: {color_saldo};">{fmt_puntos(pts_restantes)} pts</b></span>
+                        <span>Canjes en carrito: <b>{fmt_puntos(pts_canjes_carrito)} pts</b></span>
+                        <span>Saldo disponible: <b style="color: {color_saldo};">{fmt_puntos(pts_restantes)} pts</b></span>
                     </div>
                 </div>
                 """,
@@ -857,13 +869,13 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
         if "ultimo_ticket" in st.session_state and st.session_state["ultimo_ticket"]:
             tk = st.session_state["ultimo_ticket"]
             with st.container(border=True):
-                st.markdown(f"#### 🧾 Comprobante: Ticket #{tk['venta_id']}")
+                st.markdown(f"#### Comprobante: Ticket #{tk['venta_id']}")
                 st.caption(f"Cliente: **{tk['cliente_nombre']}** | Total: **{fmt_moneda_md(tk['total'])}** ({tk['forma_pago']})")
 
                 c_pdf, c_wa = st.columns([1, 1], gap="small")
                 with c_pdf:
                     st.download_button(
-                        label="📄 Descargar Ticket (PDF 80mm)",
+                        label=":material/download: Descargar Ticket (PDF 80mm)",
                         data=tk["pdf_bytes"],
                         file_name=f"ticket_{tk['venta_id']}.pdf",
                         mime="application/pdf",
@@ -874,7 +886,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                     if tel:
                         msg_whatsapp = reportes.armar_mensaje_whatsapp_ticket(tk)
                         wa_url = reportes.armar_url_whatsapp(tel, msg_whatsapp)
-                        st.link_button("📲 Enviar por WhatsApp", url=wa_url, width="stretch")
+                        st.link_button(":material/send: Enviar por WhatsApp", url=wa_url, width="stretch")
                     else:
                         st.caption("ℹ️ Sin teléfono para WhatsApp")
 
@@ -902,11 +914,11 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                         if img_item:
                             st.image(img_item, width=44)
                         else:
-                            st.markdown("<div style='font-size: 20px; text-align: center; margin-top: 4px;'>📦</div>", unsafe_allow_html=True)
+                            st.markdown(":material/inventory_2:")
                     with c_info:
                         st.markdown(f"**{item['nombre']}** (`{item['codigo']}`)")
                         if es_canje_item:
-                            st.markdown("<span style='background: #FEF3C7; color: #92400E; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;'>🎁 Canje por Puntos ($ 0,00)</span>", unsafe_allow_html=True)
+                            st.markdown("<span style='background: #FEF3C7; color: #92400E; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;'>Canje por Puntos ($ 0,00)</span>", unsafe_allow_html=True)
                             st.caption(f"{fmt_cantidad(item['cantidad'])} unid. | Costo: {pts_tot_item} pts")
                         else:
                             st.caption(f"{fmt_cantidad(item['cantidad'])} unid. x {fmt_moneda_md(item['precio_unitario'])}")
@@ -927,7 +939,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                             if not es_canje_item:
                                 if st.button(":material/redeem: Canjear con Puntos", key=f"btn_canje_{idx}", width="stretch"):
                                     if not cliente_pos:
-                                        st.warning("⚠️ Debés seleccionar un cliente registrado arriba para canjear con puntos.")
+                                        st.warning("Debés seleccionar un cliente registrado arriba para canjear con puntos.")
                                     else:
                                         pts_cli = round(float(cliente_pos.get("puntos") or 0), 2)
                                         otros_canjes = sum(
@@ -937,13 +949,13 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                                         )
                                         pts_disponibles = pts_cli - otros_canjes
                                         if pts_disponibles < pts_tot_item:
-                                            st.error(f"⛔ Puntos insuficientes: Se requieren {pts_tot_item} pts y {cliente_pos['nombre']} solo dispone de {pts_disponibles} pts.")
+                                            st.error(f"Puntos insuficientes: Se requieren {pts_tot_item} pts y {cliente_pos['nombre']} solo dispone de {pts_disponibles} pts.")
                                         else:
                                             item["es_canje"] = True
                                             item["precio_original"] = item.get("precio_original") or item["precio_unitario"]
                                             item["precio_unitario"] = 0.0
                                             item["subtotal"] = 0.0
-                                            st.toast(f"🎁 Canje activado para {item['nombre']} ({pts_tot_item} pts)", icon="🎉")
+                                            st.toast(f"Canje activado para {item['nombre']} ({pts_tot_item} pts)", icon=":material/redeem:")
                                             st.rerun()
                             else:
                                 if st.button(":material/undo: Cancelar Canje", key=f"btn_cancel_canje_{idx}", width="stretch"):
@@ -951,13 +963,13 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                                     p_orig = float(item.get("precio_original") or 0.0)
                                     item["precio_unitario"] = p_orig
                                     item["subtotal"] = round(item["cantidad"] * p_orig, 2)
-                                    st.toast(f"↩️ Canje cancelado para {item['nombre']}", icon="ℹ️")
+                                    st.toast(f"Canje cancelado para {item['nombre']}", icon=":material/info:")
                                     st.rerun()
                         with c_canje_txt:
                             if es_canje_item:
-                                st.caption(f"✨ Canjeando por **{pts_tot_item} pts**")
+                                st.caption(f"Canjeando por **{pts_tot_item} pts**")
                             else:
-                                st.caption(f"🎁 Requiere **{pts_tot_item} pts** ({pts_unit} pts c/u)")
+                                st.caption(f"Requiere **{pts_tot_item} pts** ({pts_unit} pts c/u)")
 
             total_venta = round(sum(item["subtotal"] for item in st.session_state.carrito), 2)
             st.markdown(
@@ -986,7 +998,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
             # Tarjeta de Datos Bancarios y QR
             if forma_pago in ["Mercado Pago / QR", "Transferencia"]:
                 with st.container(border=True):
-                    st.markdown("#### 📱 Datos para Cobro Electrónico")
+                    st.markdown("#### Datos para Cobro Electrónico")
                     col_qr_vista, col_banco_vista = st.columns([1, 1.5], gap="small")
                     with col_qr_vista:
                         qr_abs = obtener_ruta_imagen_absoluta(config_negocio.get("qr_imagen_path"))
@@ -1005,9 +1017,9 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
 
             if forma_pago == "Cuenta Corriente / Fiado":
                 with st.container(border=True):
-                    st.markdown("#### 👥 Asignar Venta a Cuenta Corriente")
+                    st.markdown("#### Asignar Venta a Cuenta Corriente")
                     if cliente_pos is None:
-                        st.error("⛔ Para fiar en Cuenta Corriente debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
+                        st.error("Para fiar en Cuenta Corriente debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
                         bloquear_venta_fiado = True
                     else:
                         saldo_previsto = cliente_pos["saldo_deudor"] + total_venta
@@ -1019,10 +1031,10 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                             st.markdown(f"**Saldo Tras la Venta:** **{fmt_moneda_md(saldo_previsto)}**")
 
                         if cliente_pos["limite_credito"] > 0 and saldo_previsto > cliente_pos["limite_credito"]:
-                            st.error(f"⛔ **LÍMITE EXCEDIDO:** La venta superará el límite de crédito configurado ({fmt_moneda_md(cliente_pos['limite_credito'])}).")
+                            st.error(f"**LÍMITE EXCEDIDO:** La venta superará el límite de crédito configurado ({fmt_moneda_md(cliente_pos['limite_credito'])}).")
                             bloquear_venta_fiado = True
                         else:
-                            st.success(f"✅ Venta autorizada a la cuenta de {cliente_pos['nombre']}.")
+                            st.success(f"Venta autorizada a la cuenta de {cliente_pos['nombre']}.")
 
             # CANJE DE PREMIOS POR PUNTOS: Validar cliente y saldo suficiente
             bloquear_canje_puntos = False
@@ -1033,9 +1045,9 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                     for it in canjes_carrito
                 )
                 with st.container(border=True):
-                    st.markdown("#### 🎁 Canje de Premios con Puntos")
+                    st.markdown("#### Canje de Premios con Puntos")
                     if cliente_pos is None:
-                        st.error("⛔ Para canjear productos con puntos debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
+                        st.error("Para canjear productos con puntos debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
                         bloquear_canje_puntos = True
                     else:
                         pts_cli = round(float(cliente_pos.get("puntos") or 0), 2)
@@ -1048,10 +1060,10 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
                             color_pts = "#16A34A" if saldo_pts_post >= 0 else "#DC2626"
                             st.markdown(f"**Saldo Final:** <b style='color: {color_pts};'>{fmt_puntos(saldo_pts_post)} pts</b>", unsafe_allow_html=True)
                         if pts_cli < total_pts_pedidos:
-                            st.error(f"⛔ **PUNTOS INSUFICIENTES:** Los canjes en el carrito suman {fmt_puntos(total_pts_pedidos)} pts y {cliente_pos['nombre']} solo posee {fmt_puntos(pts_cli)} pts acumulados. Cancelá el canje o ajustá la cantidad.")
+                            st.error(f"**PUNTOS INSUFICIENTES:** Los canjes en el carrito suman {fmt_puntos(total_pts_pedidos)} pts y {cliente_pos['nombre']} solo posee {fmt_puntos(pts_cli)} pts acumulados. Cancelá el canje o ajustá la cantidad.")
                             bloquear_canje_puntos = True
                         else:
-                            st.success(f"✅ Canje autorizado: Se descontarán {fmt_puntos(total_pts_pedidos)} puntos de la cuenta de {cliente_pos['nombre']}.")
+                            st.success(f"Canje autorizado: Se descontarán {fmt_puntos(total_pts_pedidos)} puntos de la cuenta de {cliente_pos['nombre']}.")
 
             st.write("")
             col_btn_vender, col_btn_vaciar = st.columns([2.5, 1], gap="small")
@@ -1135,7 +1147,7 @@ if modulo == ":material/point_of_sale: Punto de Venta (POS)":
 
                         st.session_state.carrito = []
                         st.balloons()
-                        st.success(f"🎉 ¡Venta #{venta_id} confirmada por {fmt_moneda_md(total_ticket)} ({forma_pago})!")
+                        st.success(f"¡Venta #{venta_id} confirmada por {fmt_moneda_md(total_ticket)} ({forma_pago})!")
                         st.rerun()
                     except models.InsufficientStockError as err:
                         st.error(f"Stock insuficiente: {err}")
@@ -1188,17 +1200,17 @@ elif modulo == ":material/group: Cuentas Corrientes / Clientes":
                         if reportes.normalizar_tel_ar(c['telefono']):  # sin número completo, sin link
                             tel_vis = str(c['telefono']).replace('[', '').replace(']', '')
                             tel_txt = f"[{tel_vis}]({reportes.armar_url_whatsapp(c['telefono'], '')})"
-                        st.caption(f"📞 Tel: {tel_txt} | ✉️ {c['email'] or 'Sin correo'}")
+                        st.caption(f":material/call: {tel_txt} · :material/mail: {c['email'] or 'Sin correo'}")
                     with c2:
                         limite_txt = f"{fmt_moneda_md(c['limite_credito'])}" if c['limite_credito'] > 0 else "Sin límite"
                         st.markdown(f"**Límite de Crédito:** {limite_txt}")
                     with c3:
                         if c["saldo_deudor"] > 0:
-                            st.error(f"🔴 **Debe: {fmt_moneda_md(c['saldo_deudor'])}**")
+                            st.badge(f"Debe {fmt_moneda_md(c['saldo_deudor'])}", icon=":material/error:", color="red")
                         else:
-                            st.success("🟢 **Al día ($ 0,00)**")
+                            st.badge("Al día", icon=":material/check_circle:", color="green")
                     with c4:
-                        st.markdown(f"🏷️ **Puntos:** {fmt_puntos(c.get('puntos', 0))}")
+                        st.markdown(f"**Puntos:** {fmt_puntos(c.get('puntos', 0))}")
     # 2. Alta de Cliente
     with tab_c_nuevo:
         st.subheader("Registrar Nuevo Cliente")
@@ -1226,7 +1238,7 @@ elif modulo == ":material/group: Cuentas Corrientes / Clientes":
                         email=mail_cli,
                         limite_credito=limite_cli
                     )
-                    st.success(f"✅ ¡Cliente '{nom_cli}' registrado con éxito! (ID: {nuevo_cid})")
+                    st.success(f"¡Cliente '{nom_cli}' registrado con éxito! (ID: {nuevo_cid})")
                     st.rerun()
                 except models.BusinessLogicError as e:
                     st.error(f"Error de validación: {e}")
@@ -1276,7 +1288,7 @@ elif modulo == ":material/group: Cuentas Corrientes / Clientes":
                             metodo_pago=metodo_abono,
                             descripcion=nota_abono or None
                         )
-                        st.success(f"🎉 Abono registrado con éxito (#{mov_id}) por {fmt_moneda_md(monto_abono)}. Nuevo saldo: {fmt_moneda_md(nuevo_saldo_previsto)}")
+                        st.success(f"Abono registrado con éxito (#{mov_id}) por {fmt_moneda_md(monto_abono)}. Nuevo saldo: {fmt_moneda_md(nuevo_saldo_previsto)}")
                         st.rerun()
                     except models.BusinessLogicError as e:
                         st.error(f"Error: {e}")
@@ -1297,17 +1309,17 @@ elif modulo == ":material/group: Cuentas Corrientes / Clientes":
             with st.container(border=True):
                 c_f1, c_f2, c_f3, c_f4 = st.columns([2, 1.5, 1.5, 1.5])
                 c_f1.markdown(f"**Cliente:** {cli_f['nombre']}")
-                c_f1.caption(f"📞 {cli_f['telefono'] or 'S/T'} | ✉️ {cli_f['email'] or 'S/E'}")
+                c_f1.caption(f":material/call: {cli_f['telefono'] or 'Sin teléfono'} · :material/mail: {cli_f['email'] or 'S/E'}")
                 c_f2.markdown(f"**Límite de Crédito:** {fmt_moneda_md(cli_f['limite_credito'])}" if cli_f['limite_credito'] > 0 else "**Límite:** Sin límite")
                 c_f3.markdown(f"**Saldo Deudor:** :red[**{fmt_moneda_md(cli_f['saldo_deudor'])}**]" if cli_f['saldo_deudor'] > 0 else f"**Saldo Deudor:** :green[**{fmt_moneda_md(0)}**]")
-                c_f4.markdown(f"🏷️ **Puntos:** {fmt_puntos(cli_f.get('puntos', 0))}")
+                c_f4.markdown(f"**Puntos:** {fmt_puntos(cli_f.get('puntos', 0))}")
 
             movimientos = models.obtener_movimientos_cliente(cli_f["id"])
             if not movimientos:
                 st.info("Este cliente no tiene movimientos registrados aún.")
             else:
                 df_movs = pd.DataFrame(movimientos)
-                df_movs["tipo_fmt"] = df_movs["tipo"].map({"CARGO": "🔴 CARGO (Compra Fiada)", "PAGO": "🟢 PAGO (Abono)"})
+                df_movs["tipo_fmt"] = df_movs["tipo"].map({"CARGO": "Cargo (compra fiada)", "PAGO": "Pago (abono)"})
                 df_movs["monto_fmt"] = df_movs["monto"].apply(lambda x: f"{fmt_moneda(x)}")
                 df_movs["fecha_hora"] = pd.to_datetime(df_movs["fecha_hora"], utc=True).dt.tz_convert(ZONA_HORARIA).dt.strftime("%d/%m/%Y %H:%M")
                 
@@ -1348,7 +1360,7 @@ elif modulo == ":material/group: Cuentas Corrientes / Clientes":
                     if btn_guardar_cli:
                         try:
                             models.actualizar_cliente(cid, e_nom, e_tel, e_mail, e_limite)
-                            st.success("✅ Datos del cliente actualizados.")
+                            st.success("Datos del cliente actualizados.")
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(f"Error: {e}")
@@ -1468,7 +1480,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         if aplicar:
                             comercio_id_actual = usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
                             exitosos = models.actualizar_precios_masivamente(modificados, comercio_id=comercio_id_actual)
-                            st.session_state["flash_inventario"] = f"✅ ¡Aumento masivo aplicado con éxito! Se actualizaron {exitosos} productos."
+                            st.session_state["flash_inventario"] = f"¡Aumento masivo aplicado con éxito! Se actualizaron {exitosos} productos."
                             st.rerun()
 
         col_filtro1, col_filtro2, col_filtro3, col_exp = st.columns([1.8, 1.1, 1, 1.1], gap="small")
@@ -1492,7 +1504,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
             todos_para_exp = models.obtener_productos(comercio_id=usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT))
             excel_bytes = models.generar_excel_inventario(todos_para_exp)
             st.download_button(
-                label="📥 Exportar a Excel",
+                label=":material/download: Exportar a Excel",
                 data=excel_bytes,
                 file_name=f"inventario_productos_{fecha_export}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1528,8 +1540,8 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         else:
                             st.markdown(
                                 """<div style="height: 140px; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 8px;">
-                                    <span style="font-size: 2.2rem;">📷</span>
-                                    <small style="font-size: 0.75rem; font-weight: 500; margin-top: 4px;">Sin foto</small>
+                                    <span style="font-size: 0.9rem;">Sin foto</span>
+                                    
                                 </div>""",
                                 unsafe_allow_html=True
                             )
@@ -1541,7 +1553,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         stock_actual = float(p.get("stock_actual", 0))
                         stock_minimo = float(p.get("stock_minimo", 0))
                         puntos_canje = int(p.get("puntos_canje") or 0)
-                        canje_html = f'<span style="background-color: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; border: 1px solid #fde68a; margin-left: 6px;">🎁 {puntos_canje} pts</span>' if puntos_canje > 0 else ''
+                        canje_html = f'<span style="background-color: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; border: 1px solid #fde68a; margin-left: 6px;">{puntos_canje} pts</span>' if puntos_canje > 0 else ''
 
                         # Nombre del producto
                         st.markdown(f"<div style='font-weight: 700; font-size: 1.05rem; color: #0f172a; margin-top: 6px; line-height: 1.3;'>{nombre_esc}</div>", unsafe_allow_html=True)
@@ -1549,7 +1561,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         # Badge de categoría y código
                         st.markdown(
                             f"""<div style="margin: 4px 0 6px 0;">
-                                <span style="background-color: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; border: 1px solid #bfdbfe;">🏷️ {cat_esc}</span>
+                                <span style="background-color: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; border: 1px solid #bfdbfe;">{cat_esc}</span>
                                 <span style="color: #64748b; font-size: 0.72rem; margin-left: 6px;">Cod: {cod_esc}</span>
                                 {canje_html}
                             </div>""",
@@ -1568,14 +1580,14 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         if stock_actual <= stock_minimo:
                             st.markdown(
                                 f"""<div style="background-color: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
-                                    🚨 Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
+                                    Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
                                 </div>""",
                                 unsafe_allow_html=True
                             )
                         else:
                             st.markdown(
                                 f"""<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
-                                    📦 Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
+                                    Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
                                 </div>""",
                                 unsafe_allow_html=True
                             )
@@ -1776,7 +1788,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
             margen = st.number_input("Margen de Ganancia (%)", min_value=0.0, value=30.0, step=5.0, format="%.2f", key=f"np_margen_{vnp}")
 
             precio_sugerido = models.calcular_precio_venta(costo, margen)
-            st.info(f"💡 Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido)}**")
+            st.info(f"Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido)}**")
 
             usa_manual = st.checkbox("Sobreescribir precio de venta manualmente", key=f"np_usa_manual_{vnp}")
             precio_manual = None
@@ -1832,7 +1844,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                     imagen_path=ruta_img_guardada,
                     puntos_canje=int(puntos_canje_nuevo)
                 )
-                st.session_state["flash_inventario"] = f"✅ ¡Producto '{nombre.strip()}' creado con éxito! (ID: {nuevo_id})"
+                st.session_state["flash_inventario"] = f"¡Producto '{nombre.strip()}' creado con éxito! (ID: {nuevo_id})"
                 st.session_state["nuevo_prod_version"] = vnp + 1
                 st.rerun()
             except models.BusinessLogicError as e:
@@ -1874,7 +1886,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
             col_ed1, col_ed2 = st.columns(2, gap="large")
 
             with col_ed1:
-                st.markdown("#### 📝 Información General y Foto")
+                st.markdown("#### Información General y Foto")
                 codigo_edit = st.text_input(
                     "Código de Barras / SKU *",
                     value=prod_actual["codigo"],
@@ -1905,7 +1917,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                 )
                 cat_edit_id = cat_options_con_ninguna[cat_edit_elegida]
 
-                st.markdown("##### 📷 Fotografía del Producto")
+                st.markdown("##### Fotografía del Producto")
                 img_actual_abs = obtener_ruta_imagen_absoluta(prod_actual.get("imagen_path"))
                 eliminar_foto_check = False
 
@@ -1925,7 +1937,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                 )
 
             with col_ed2:
-                st.markdown("#### 💰 Precios y Control de Inventario")
+                st.markdown("#### Precios y Control de Inventario")
                 costo_edit = st.number_input(
                     "Precio de Costo ($)",
                     min_value=0.0,
@@ -1944,7 +1956,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                 )
 
                 precio_sugerido_edit = models.calcular_precio_venta(costo_edit, margen_edit)
-                st.info(f"💡 Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido_edit)}**")
+                st.info(f"Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido_edit)}**")
 
                 usa_manual_edit = st.checkbox(
                     "Sobreescribir precio de venta manualmente",
@@ -2022,7 +2034,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         if ruta_img_final or eliminar_foto:
                             borrar_archivo_imagen_local(prod.get("imagen_path"))
                         st.cache_data.clear()
-                        st.session_state["flash_inventario"] = f"✅ ¡Producto '{nombre_edit.strip()}' actualizado con éxito!"
+                        st.session_state["flash_inventario"] = f"¡Producto '{nombre_edit.strip()}' actualizado con éxito!"
                         st.rerun()
                     except models.BusinessLogicError as e:
                         borrar_archivo_imagen_local(ruta_img_final)
@@ -2070,7 +2082,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
 
             with col_ajuste_izq:
                 with st.container(border=True):
-                    st.markdown("#### 📦 Ajustar Cantidad en Almacén")
+                    st.markdown("#### Ajustar Cantidad en Almacén")
                     tipo_ajuste = st.radio("Método de Ajuste", ["Establecer Conteo Físico Exacto", "Sumar Ingreso de Mercadería"], key=f"aj_tipo_{ka}")
 
                     if tipo_ajuste == "Establecer Conteo Físico Exacto":
@@ -2090,7 +2102,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                     if st.button("Guardar Stock Actual", type="primary", key=f"aj_guardar_{ka}"):
                         try:
                             models.ajustar_stock(prod_a_ajustar["id"], nuevo_stock_val)
-                            st.session_state["flash_inventario"] = f"✅ Stock de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_stock_val)} unidades."
+                            st.session_state["flash_inventario"] = f"Stock de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_stock_val)} unidades."
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(str(e))
@@ -2099,7 +2111,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
 
             with col_ajuste_der:
                 with st.container(border=True):
-                    st.markdown("#### ⚙️ Umbral de Stock Mínimo")
+                    st.markdown("#### Umbral de Stock Mínimo")
                     nuevo_minimo = st.number_input(
                         "Stock Mínimo Personalizado",
                         min_value=0.0,
@@ -2112,7 +2124,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                     if st.button("Guardar Stock Mínimo", key=f"aj_guardar_min_{ka}"):
                         try:
                             models.actualizar_stock_minimo(prod_a_ajustar["id"], nuevo_minimo)
-                            st.session_state["flash_inventario"] = f"✅ Stock mínimo de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_minimo)}."
+                            st.session_state["flash_inventario"] = f"Stock mínimo de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_minimo)}."
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(str(e))
@@ -2125,7 +2137,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
         bajo_stock_list = models.obtener_productos_bajo_stock()
 
         if not bajo_stock_list:
-            st.success("🎉 ¡Excelente! No hay productos con stock igual o inferior a su mínimo.")
+            st.success("¡Excelente! No hay productos con stock igual o inferior a su mínimo.")
         else:
             st.warning(f"Se encontraron **{len(bajo_stock_list)}** artículos con necesidad de reposición.")
 
@@ -2151,14 +2163,14 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
 
         with col_p1:
             with st.container(border=True):
-                st.markdown("#### 📄 Paso 1: Descargar Plantilla de Ejemplo")
+                st.markdown("#### Paso 1: Descargar Plantilla de Ejemplo")
                 st.markdown(
                     "Descargá la planilla modelo con las columnas requeridas:  \n"
                     "`codigo`, `nombre`, `categoria`, `precio_costo`, `precio_venta`, `stock`, `stock_minimo`, `puntos_canje`"
                 )
                 plantilla_bytes = models.generar_plantilla_excel_productos()
                 st.download_button(
-                    label="📄 Descargar Plantilla de Ejemplo (.xlsx)",
+                    label=":material/download: Descargar Plantilla de Ejemplo (.xlsx)",
                     data=plantilla_bytes,
                     file_name="plantilla_productos_ejemplo.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2167,7 +2179,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
 
         with col_p2:
             with st.container(border=True):
-                st.markdown("#### 📤 Paso 2: Subir Archivo (.xlsx / .csv)")
+                st.markdown("#### Paso 2: Subir Archivo (.xlsx / .csv)")
                 st.markdown("Seleccioná el archivo con tus productos para procesar.")
                 archivo_subido = st.file_uploader(
                     "Subir archivo Excel o CSV",
@@ -2178,7 +2190,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
 
         if archivo_subido is not None:
             st.markdown("---")
-            st.markdown("#### 🔍 Paso 3: Previsualización y Validaciones")
+            st.markdown("#### Paso 3: Previsualización y Validaciones")
 
             df_cargado = None
             try:
@@ -2191,13 +2203,13 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         archivo_subido.seek(0)
                         df_cargado = pd.read_csv(archivo_subido, dtype={"codigo": str, "Código": str}, sep=None, engine="python", encoding="latin1")
             except Exception as e:
-                st.error(f"❌ Error al leer el archivo: {e}")
+                st.error(f"Error al leer el archivo: {e}")
 
             if df_cargado is not None:
                 df_cargado = df_cargado.dropna(how="all").reset_index(drop=True)
 
                 if df_cargado.empty:
-                    st.warning("⚠️ El archivo subido no contiene filas con datos.")
+                    st.warning("El archivo subido no contiene filas con datos.")
                 else:
                     # Mapeo normalizado
                     mapeo_prev = {}
@@ -2254,9 +2266,9 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                         st.metric("Total Filas Detectadas", len(df_cargado))
                     with m2:
                         if not errores_validacion:
-                            st.metric("Validación de Datos", "✅ Sin errores")
+                            st.metric("Validación de Datos", "Sin errores")
                         else:
-                            st.metric("Validación de Datos", f"⚠️ {len(errores_validacion)} fila(s) con aviso")
+                            st.metric("Validación de Datos", f"{len(errores_validacion)} fila(s) con aviso")
                     with m3:
                         cats_en_archivo = [c for c in df_validar["categoria"].dropna().unique().tolist() if str(c).strip()] if "categoria" in df_validar.columns else []
                         st.metric("Categorías en Archivo", len(cats_en_archivo) if cats_en_archivo else 1)
@@ -2272,7 +2284,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                     st.dataframe(df_cargado, width="stretch", hide_index=False)
 
                     st.markdown("---")
-                    st.markdown("#### ✅ Paso 4: Confirmación")
+                    st.markdown("#### Paso 4: Confirmación")
                     st.caption("Al confirmar, se crearán o actualizarán los productos y las categorías inexistentes se darán de alta automáticamente.")
 
                     btn_confirmar = st.button(
@@ -2289,7 +2301,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                             
                             cats_msg = f", {res_imp['categorias_creadas']} categorías nuevas creadas" if res_imp.get("categorias_creadas") else ""
                             msg_exito = (
-                                f"🎉 ¡Carga masiva completada! Se procesaron {res_imp['total']} productos "
+                                f"¡Carga masiva completada! Se procesaron {res_imp['total']} productos "
                                 f"({res_imp['creados']} creados, {res_imp['actualizados']} actualizados{cats_msg})."
                             )
                             st.session_state["flash_inventario"] = msg_exito
@@ -2330,7 +2342,7 @@ elif modulo == ":material/sell: Categorías":
                         confirma_baja_cat = st.checkbox("Confirmo dar de baja esta categoría", key=f"chk_baja_cat_{cat['id']}")
                         c_btn_edit, c_btn_del = st.columns(2)
 
-                        btn_editar = c_btn_edit.form_submit_button("💾 Guardar Cambios", type="primary")
+                        btn_editar = c_btn_edit.form_submit_button(":material/save: Guardar Cambios", type="primary")
                         btn_eliminar = c_btn_del.form_submit_button("Dar de baja", type="secondary")
                         
                         if btn_editar:
@@ -2373,7 +2385,7 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
     resumen = models.obtener_arqueo_caja(fecha_elegida.strftime("%Y-%m-%d"))
 
     # ---> NUEVO FORMULARIO DE CAJA CHICA Y TABLA
-    st.markdown("### 💵 Registro de Caja Chica (Efectivo)")
+    st.markdown("### Registro de Caja Chica (Efectivo)")
     with st.expander(":material/add: Registrar Ingreso Extra / Egreso Manual", expanded=False):
         with st.form("form_caja_chica"):
             col_cc1, col_cc2, col_cc3 = st.columns([1, 1, 2])
@@ -2396,7 +2408,7 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
                         concepto=concepto_mov, 
                         usuario_nombre=usuario_actual.get("nombre", "Desconocido")
                     )
-                    st.success("✅ Movimiento de caja registrado con éxito.")
+                    st.success("Movimiento de caja registrado con éxito.")
                     st.rerun()
                 except models.BusinessLogicError as e:
                     st.error(f"Error: {e}")
@@ -2405,11 +2417,11 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
                     
     # Mostrar tabla de movimientos si hay
     if resumen.get("movimientos_caja"):
-        st.markdown("#### 📝 Movimientos de Caja Chica de la Fecha")
+        st.markdown("#### Movimientos de Caja Chica de la Fecha")
         df_movs = pd.DataFrame(resumen["movimientos_caja"])[["fecha", "tipo", "concepto", "monto", "usuario_nombre"]]
         # Formatear la fecha
         df_movs["fecha"] = pd.to_datetime(df_movs["fecha"], utc=True).dt.tz_convert(ZONA_HORARIA).dt.strftime("%H:%M")
-        df_movs["tipo"] = df_movs["tipo"].map({"egreso": "🔴 Egreso", "ingreso_extra": "🟢 Ingreso Extra"})
+        df_movs["tipo"] = df_movs["tipo"].map({"egreso": "Egreso", "ingreso_extra": "Ingreso extra"})
         df_movs["monto"] = df_movs["monto"].apply(lambda x: f"{fmt_moneda(float(x))}")
         df_movs = df_movs.rename(columns={
             "fecha": "Hora", "tipo": "Tipo", "concepto": "Concepto", 
@@ -2454,7 +2466,7 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
     # Panel de Descarga, WhatsApp y Envío de Correo si se activó el cierre
     if st.session_state.get("cierre_activo") and st.session_state.get("cierre_fecha_activa") == fecha_elegida.strftime("%Y-%m-%d"):
         with st.container(border=True):
-            st.success(f"🎉 **Cierre de Caja procesado para el día {fecha_elegida.strftime('%d/%m/%Y')}**")
+            st.success(f"**Cierre de Caja procesado para el día {fecha_elegida.strftime('%d/%m/%Y')}**")
 
             nombre_neg = config_negocio.get("nombre_negocio", "Mi Comercio")
             pdf_bytes = reportes.generar_pdf_cierre_caja(
@@ -2467,7 +2479,7 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
 
             with col_acc1:
                 st.download_button(
-                    label="⬇️ Descargar PDF del Cierre",
+                    label=":material/download: Descargar PDF del Cierre",
                     data=pdf_bytes,
                     file_name=f"Cierre_Caja_{fecha_elegida.strftime('%Y-%m-%d')}.pdf",
                     mime="application/pdf",
@@ -2481,7 +2493,7 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
                     nombre_negocio=nombre_neg
                 )
                 url_wsp = reportes.armar_url_whatsapp(None, msg_wsp)
-                st.link_button("📲 Compartir Cierre por WhatsApp", url_wsp, width="stretch")
+                st.link_button(":material/send: Compartir Cierre por WhatsApp", url_wsp, width="stretch")
 
             with col_acc3:
                 email_dest = config_negocio.get("email_destinatario", "").strip()
@@ -2499,7 +2511,7 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
                         else:
                             st.error(mensaje)
                 else:
-                    st.caption("ℹ️ Configure el correo en '⚙️ Configuración' para habilitar el envío automático.")
+                    st.caption("ℹ️ Configure el correo en 'Ajustes' para habilitar el envío automático.")
 
             clave_envio = f"email_sent_{fecha_elegida.strftime('%Y-%m-%d')}"
             if not st.session_state.get(clave_envio):
@@ -2513,9 +2525,9 @@ elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
                     )
                     st.session_state[clave_envio] = True
                     if exito:
-                        st.info(f"📧 Correo automático: {mensaje}")
+                        st.info(f"Correo automático: {mensaje}")
                     else:
-                        st.warning(f"⚠️ Correo automático: {mensaje}")
+                        st.warning(f"Correo automático: {mensaje}")
 
     st.markdown("---")
 
@@ -2582,10 +2594,10 @@ elif modulo == ":material/settings: Configuración del Negocio":
         col_c1, col_c2 = st.columns(2, gap="large")
 
         with col_c1:
-            st.markdown("### 🏪 Identidad del Negocio")
+            st.markdown("### Identidad del Negocio")
             nombre_neg_input = st.text_input("Nombre de Fantasía del Negocio", value=config_negocio.get("nombre_negocio", "Mi Comercio"))
 
-            st.markdown("#### 🖼️ Logo del Local")
+            st.markdown("#### Logo del Local")
             logo_actual_abs = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
             eliminar_logo_check = False
             if logo_actual_abs:
@@ -2603,13 +2615,13 @@ elif modulo == ":material/settings: Configuración del Negocio":
                 key="uploader_logo_cfg"
             )
 
-            st.markdown("### 🏦 Datos Bancarios y QR de Cobro")
+            st.markdown("### Datos Bancarios y QR de Cobro")
             titular_input = st.text_input("Titular de la Cuenta", value=config_negocio.get("titular_cuenta", ""))
             banco_input = st.text_input("Banco o Billetera Virtual (ej: Mercado Pago, Santander)", value=config_negocio.get("banco", ""))
             alias_input = st.text_input("Alias CBU/CVU", value=config_negocio.get("alias", ""))
             cbu_input = st.text_input("CBU / CVU Numérico", value=config_negocio.get("cbu", ""))
 
-            st.markdown("#### 📷 Código QR de Cobro (Estático)")
+            st.markdown("#### Código QR de Cobro (Estático)")
             qr_actual_abs = obtener_ruta_imagen_absoluta(config_negocio.get("qr_imagen_path"))
             if qr_actual_abs:
                 st.image(qr_actual_abs, caption="Código QR cargado actualmente", width=140)
@@ -2621,7 +2633,7 @@ elif modulo == ":material/settings: Configuración del Negocio":
             )
 
         with col_c2:
-            st.markdown("### ✉️ Configuración de Correo SMTP")
+            st.markdown("### Configuración de Correo SMTP")
             st.caption("Para el envío automático del PDF de Cierre de Caja.")
 
             smtp_srv_input = st.text_input("Servidor SMTP", value=config_negocio.get("smtp_servidor", "smtp.gmail.com"))
@@ -2662,7 +2674,7 @@ elif modulo == ":material/settings: Configuración del Negocio":
             if guardar_configuracion(nueva_config):
                 if logo_subido or eliminar_logo_check:
                     borrar_archivo_imagen_local(config_negocio.get("logo_imagen_path"))
-                st.success("✅ Configuración guardada correctamente.")
+                st.success("Configuración guardada correctamente.")
                 st.rerun()
             else:
                 st.error("Error al persistir la configuración.")
@@ -2677,7 +2689,7 @@ elif modulo == ":material/settings: Configuración del Negocio":
         col_bk1, col_bk2 = st.columns([1, 1], gap="large")
 
         with col_bk1:
-            st.markdown("#### 📦 Descargar Copia de Seguridad")
+            st.markdown("#### Descargar Copia de Seguridad")
             st.markdown(
                 "Exporta todos los registros de las tablas principales (**categorías, productos, clientes, ventas, detalles y movimientos de caja**) en un archivo JSON descargable."
             )
@@ -2686,7 +2698,7 @@ elif modulo == ":material/settings: Configuración del Negocio":
             nombre_archivo_backup = f"backup_sistema_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
             st.download_button(
-                label="📦 Descargar Copia de Seguridad Completa (JSON)",
+                label=":material/download: Descargar Copia de Seguridad Completa (JSON)",
                 data=backup_json_str,
                 file_name=nombre_archivo_backup,
                 mime="application/json",
@@ -2695,7 +2707,7 @@ elif modulo == ":material/settings: Configuración del Negocio":
             )
 
         with col_bk2:
-            st.markdown("#### 📥 Restaurar desde Copia de Seguridad")
+            st.markdown("#### Restaurar desde Copia de Seguridad")
             st.caption("Recupera tus datos cargando un archivo de respaldo previo.")
 
             archivo_respaldo = st.file_uploader(
@@ -2720,17 +2732,17 @@ elif modulo == ":material/settings: Configuración del Negocio":
                     cant_clis = len(tablas_preview.get("clientes", [])) if isinstance(tablas_preview, dict) else 0
 
                     st.info(
-                        f"📅 **Fecha del Backup:** {fecha_bk_fmt}  \n"
-                        f"📦 **Productos:** {cant_prods} | 👥 **Clientes:** {cant_clis}"
+                        f"**Fecha del Backup:** {fecha_bk_fmt}  \n"
+                        f"**Productos:** {cant_prods} | **Clientes:** {cant_clis}"
                     )
 
                     chk_restaurar = st.checkbox(
-                        "⚠️ Confirmo que deseo restaurar la base de datos con esta copia",
+                        "Confirmo que deseo restaurar la base de datos con esta copia",
                         key="chk_confirmar_restauracion"
                     )
 
                     btn_restaurar = st.button(
-                        "🔄 Restaurar Base de Datos",
+                        ":material/restore: Restaurar Base de Datos",
                         type="primary",
                         disabled=not chk_restaurar,
                         width="stretch",
@@ -2745,23 +2757,23 @@ elif modulo == ":material/settings: Configuración del Negocio":
                         if res_rest.get("ok"):
                             partes = [f"{v} {k}" for k, v in res_rest.get("resumen", {}).items() if v > 0]
                             st.session_state["flash_config"] = (
-                                f"🎉 ¡Base de datos restaurada con éxito! Se restauraron: {', '.join(partes)}. "
+                                f"¡Base de datos restaurada con éxito! Se restauraron: {', '.join(partes)}. "
                                 "Por favor refrescá la aplicación (recargá la página) para actualizar la vista de todos los módulos."
                             )
                             st.rerun()
                         else:
-                            st.error(f"❌ Error al restaurar la copia de seguridad: {res_rest.get('error')}")
+                            st.error(f"Error al restaurar la copia de seguridad: {res_rest.get('error')}")
 
                 except json.JSONDecodeError:
-                    st.error("❌ El archivo seleccionado no contiene un formato JSON válido.")
+                    st.error("El archivo seleccionado no contiene un formato JSON válido.")
                 except Exception as e:
-                    st.error(f"❌ Error al procesar el archivo: {e}")
+                    st.error(f"Error al procesar el archivo: {e}")
 
     st.markdown("---")
 
     # ZONA DE MANTENIMIENTO / PUESTA A CERO (solo Dueño)
     if not es_admin:
-        st.error("⛔ Solo el Dueño puede acceder al mantenimiento del sistema.")
+        st.error("Solo el Dueño puede acceder al mantenimiento del sistema.")
         st.stop()
 
     # La versión cambia tras cada intento (éxito o error) para que los widgets de confirmación
@@ -2866,14 +2878,14 @@ elif modulo == ":material/settings: Configuración del Negocio":
                 st.session_state["_pos_reset_cant"] = True
                 st.session_state["reset_msg"] = (
                     "ok",
-                    "🎉 **Puesta a cero completada.** " + texto,
+                    "**Puesta a cero completada.** " + texto,
                 )
             except models.BusinessLogicError as e:
-                st.session_state["reset_msg"] = ("error", f"❌ No se cambió nada: {e}")
+                st.session_state["reset_msg"] = ("error", f"No se cambió nada: {e}")
             except Exception as e:
                 st.session_state["reset_msg"] = (
                     "error",
-                    f"❌ Error al restablecer la base de datos. No se modificó ningún dato. Detalle: {e}",
+                    f"Error al restablecer la base de datos. No se modificó ningún dato. Detalle: {e}",
                 )
             st.session_state["reset_ver"] = ver_reset + 1
             st.rerun()
