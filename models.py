@@ -10,6 +10,7 @@ def clears_cache(func):
     return wrapper
 
 import os
+from datetime import datetime, timezone
 import pandas as pd
 from database import get_connection
 from formato import fmt_moneda
@@ -25,6 +26,52 @@ class BusinessLogicError(Exception):
 class InsufficientStockError(BusinessLogicError):
     """No hay stock suficiente para completar la operación."""
 
+
+# ==========================================
+# 0. BAJA LÓGICA: los datos de negocio no se borran, se dan de baja
+# ==========================================
+TABLAS_CON_BAJA = ("productos", "clientes", "categorias")
+
+
+def _validar_tabla_baja(tabla):
+    if tabla not in TABLAS_CON_BAJA:
+        raise ValueError(f"'{tabla}' no admite baja lógica.")
+
+
+def _cambiar_estado(tabla, registro_id, activo, comercio_id):
+    _validar_tabla_baja(tabla)
+    res = (
+        get_connection().table(tabla)
+        .update({"activo": activo, "fecha_baja": None if activo else datetime.now(timezone.utc).isoformat()})
+        .eq("id", registro_id).eq("comercio_id", comercio_id)
+        .execute()
+    )
+    if not res.data:
+        raise BusinessLogicError("El registro no existe o no hay permiso de escritura.")
+
+
+@clears_cache
+def dar_de_baja(tabla, registro_id, comercio_id=COMERCIO_ID_DEFAULT):
+    """Oculta el registro de listas y del POS sin borrarlo (conserva su historial)."""
+    _cambiar_estado(tabla, registro_id, False, comercio_id)
+
+
+@clears_cache
+def reactivar(tabla, registro_id, comercio_id=COMERCIO_ID_DEFAULT):
+    _cambiar_estado(tabla, registro_id, True, comercio_id)
+
+
+def listar_dados_de_baja(tabla, comercio_id=COMERCIO_ID_DEFAULT):
+    """[{id, nombre, fecha_baja}] de los registros dados de baja, el más reciente primero."""
+    _validar_tabla_baja(tabla)
+    res = (
+        get_connection().table(tabla).select("id, nombre, fecha_baja")
+        .eq("comercio_id", comercio_id).eq("activo", False)
+        .order("fecha_baja", desc=True)
+        .execute()
+    )
+    return res.data or []
+
 # ==========================================
 # 1. GESTIÓN DE PRODUCTOS Y CATEGORÍAS
 # ==========================================
@@ -33,7 +80,7 @@ class InsufficientStockError(BusinessLogicError):
 def get_categorias(comercio_id=COMERCIO_ID_DEFAULT):
     """Devuelve la lista de categorías del comercio."""
     supabase = get_connection()
-    res = supabase.table("categorias").select("*").eq("comercio_id", comercio_id).order("nombre").execute()
+    res = supabase.table("categorias").select("*").eq("comercio_id", comercio_id).eq("activo", True).order("nombre").execute()
     return res.data or []
 
 @clears_cache
@@ -48,8 +95,10 @@ def crear_categoria(nombre, comercio_id=COMERCIO_ID_DEFAULT):
     if not nombre_limpio:
         raise BusinessLogicError("El nombre de la categoría es obligatorio.")
     supabase = get_connection()
-    dup = supabase.table("categorias").select("id").eq("comercio_id", comercio_id).ilike("nombre", nombre_limpio).execute()
+    dup = supabase.table("categorias").select("id, activo").eq("comercio_id", comercio_id).ilike("nombre", nombre_limpio).execute()
     if dup.data:
+        if not dup.data[0].get("activo", True):
+            raise BusinessLogicError(f"La categoría '{nombre_limpio}' está dada de baja: reactivala desde 'Dados de baja'.")
         raise BusinessLogicError(f"Ya existe una categoría llamada '{nombre_limpio}'.")
     res = supabase.table("categorias").insert({"nombre": nombre_limpio, "comercio_id": comercio_id}).execute()
     if not res.data:
@@ -74,14 +123,12 @@ def actualizar_categoria(categoria_id, nuevo_nombre, comercio_id=COMERCIO_ID_DEF
 
 @clears_cache
 def eliminar_categoria(categoria_id, comercio_id=COMERCIO_ID_DEFAULT):
-    """Elimina una categoría si no tiene productos asociados."""
+    """Da de baja una categoría si no tiene productos activos."""
     supabase = get_connection()
-    prods_count = supabase.table("productos").select("id", count="exact").eq("categoria_id", categoria_id).execute()
+    prods_count = supabase.table("productos").select("id", count="exact").eq("categoria_id", categoria_id).eq("activo", True).execute()
     if prods_count.count and prods_count.count > 0:
-        raise BusinessLogicError(f"No se puede eliminar la categoría porque tiene {prods_count.count} producto(s) asignado(s).")
-    res = supabase.table("categorias").delete().eq("id", categoria_id).eq("comercio_id", comercio_id).execute()
-    if not res.data:
-        raise BusinessLogicError("No se encontró la categoría o no pudo ser eliminada.")
+        raise BusinessLogicError(f"No se puede dar de baja la categoría porque tiene {prods_count.count} producto(s) activo(s).")
+    dar_de_baja("categorias", categoria_id, comercio_id)
     return True
 
 def _formatear_producto(p):
@@ -120,7 +167,7 @@ def get_productos(comercio_id=COMERCIO_ID_DEFAULT):
     """Devuelve todos los productos con su categoría asociada como DataFrame."""
     supabase = get_connection()
     # Hacemos el JOIN con categorías directamente desde Supabase
-    res = supabase.table("productos").select("*, categorias(nombre)").eq("comercio_id", comercio_id).order("nombre").execute()
+    res = supabase.table("productos").select("*, categorias(nombre)").eq("comercio_id", comercio_id).eq("activo", True).order("nombre").execute()
     
     if not res.data:
         return pd.DataFrame()
@@ -140,6 +187,7 @@ def obtener_producto_por_codigo(codigo, comercio_id=COMERCIO_ID_DEFAULT):
         .select("*, categorias(nombre)")
         .eq("comercio_id", comercio_id)
         .eq("codigo", codigo)
+        .eq("activo", True)
         .limit(1)
         .execute()
     )
@@ -202,14 +250,6 @@ def save_producto(datos, comercio_id=COMERCIO_ID_DEFAULT):
     st.cache_data.clear()
     return res.data
 
-@clears_cache
-def delete_producto(producto_id):
-    """Elimina un producto por su ID."""
-    supabase = get_connection()
-    res = supabase.table("productos").delete().eq("id", producto_id).execute()
-    return res.data
-
-
 # --- API de productos usada por app.py (Productos e Inventario) ---
 
 def calcular_precio_venta(precio_costo, margen_ganancia):
@@ -265,9 +305,13 @@ def _validar_datos_producto(codigo, nombre, precio_costo, margen_ganancia, usa_p
 
 def _verificar_codigo_libre(supabase, codigo, comercio_id, excluir_id=None):
     """Levanta BusinessLogicError si ya existe otro producto con ese código en el comercio."""
-    res = supabase.table("productos").select("id, nombre").eq("comercio_id", comercio_id).eq("codigo", codigo).execute()
+    res = supabase.table("productos").select("id, nombre, activo").eq("comercio_id", comercio_id).eq("codigo", codigo).execute()
     for fila in (res.data or []):
         if excluir_id is None or fila["id"] != excluir_id:
+            if not fila.get("activo", True):
+                raise BusinessLogicError(
+                    f"El código '{codigo}' es de '{fila['nombre']}', que está dado de baja: reactivalo desde 'Dados de baja'."
+                )
             raise BusinessLogicError(f"Ya existe un producto con el código '{codigo}' ({fila['nombre']}).")
 
 
@@ -363,20 +407,8 @@ def actualizar_producto(producto_id, codigo, nombre, categoria_id, precio_costo,
 
 @clears_cache
 def eliminar_producto(producto_id, comercio_id=COMERCIO_ID_DEFAULT):
-    """Elimina un producto. Se bloquea si tiene ventas históricas, para no romper tickets viejos."""
-    supabase = get_connection()
-    ventas = supabase.table("detalle_ventas").select("id").eq("producto_id", producto_id).limit(1).execute()
-    if ventas.data:
-        raise BusinessLogicError("El producto tiene ventas históricas registradas y no se puede eliminar.")
-
-    try:
-        res = supabase.table("productos").delete().eq("id", producto_id).eq("comercio_id", comercio_id).execute()
-    except Exception as e:
-        if "23503" in str(e):  # foreign_key_violation
-            raise BusinessLogicError("El producto está referenciado por otros registros y no se puede eliminar.")
-        raise
-    if not res.data:
-        raise BusinessLogicError("No se pudo eliminar: el producto no existe o no hay permiso de escritura (RLS).")
+    """Da de baja un producto: sale del catálogo y del POS, pero sus ventas siguen intactas."""
+    dar_de_baja("productos", producto_id, comercio_id)
     return True
 
 
@@ -431,7 +463,7 @@ def get_clientes(comercio_id=COMERCIO_ID_DEFAULT):
 def obtener_clientes(busqueda=None, comercio_id=COMERCIO_ID_DEFAULT):
     """Obtiene clientes ordenados por nombre con filtro opcional de búsqueda."""
     supabase = get_connection()
-    res = supabase.table("clientes").select("*").eq("comercio_id", comercio_id).order("nombre").execute()
+    res = supabase.table("clientes").select("*").eq("comercio_id", comercio_id).eq("activo", True).order("nombre").execute()
     clientes = [_formatear_cliente(c) for c in (res.data or [])]
     if busqueda and busqueda.strip():
         q = busqueda.strip().lower()
@@ -494,7 +526,7 @@ def actualizar_cliente(cliente_id, nombre, telefono="", email="", limite_credito
 
 @clears_cache
 def eliminar_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
-    """Elimina un cliente verificando que no posea deuda pendiente."""
+    """Da de baja un cliente sin deuda pendiente; su historial se conserva."""
     supabase = get_connection()
     cli = supabase.table("clientes").select("id, nombre, saldo_deudor").eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
     if not cli.data:
@@ -502,17 +534,10 @@ def eliminar_cliente(cliente_id, comercio_id=COMERCIO_ID_DEFAULT):
     
     saldo = float(cli.data[0].get("saldo_deudor") or 0.0)
     if saldo > 0:
-        raise BusinessLogicError(f"No se puede eliminar a '{cli.data[0]['nombre']}' porque registra una deuda activa de {fmt_moneda(saldo)}.")
-    
-    try:
-        supabase.table("movimientos_cuenta").delete().eq("cliente_id", cliente_id).execute()
-        res = supabase.table("clientes").delete().eq("id", cliente_id).eq("comercio_id", comercio_id).execute()
-        if not res.data:
-            raise BusinessLogicError("No se pudo eliminar el cliente.")
-    except Exception as e:
-        if "23503" in str(e):
-            raise BusinessLogicError("El cliente está vinculado a tickets de venta y no puede ser eliminado.")
-        raise
+        raise BusinessLogicError(f"No se puede dar de baja a '{cli.data[0]['nombre']}' porque registra una deuda activa de {fmt_moneda(saldo)}.")
+
+    # Su historial de cuenta corriente se conserva
+    dar_de_baja("clientes", cliente_id, comercio_id)
     return True
 
 @clears_cache
@@ -786,7 +811,7 @@ def obtener_productos_bajo_stock(comercio_id=COMERCIO_ID_DEFAULT):
 def obtener_resumen_deuda_total(comercio_id=COMERCIO_ID_DEFAULT):
     """Suma el saldo deudor de todos los clientes para mostrar en el panel."""
     supabase = get_connection()
-    res = supabase.table("clientes").select("saldo_deudor").eq("comercio_id", comercio_id).execute()
+    res = supabase.table("clientes").select("saldo_deudor").eq("comercio_id", comercio_id).eq("activo", True).execute()
     
     if not res.data:
         return {"total_deuda": 0.0, "clientes_con_deuda": 0, "total_clientes": 0}
@@ -1269,8 +1294,10 @@ def importar_productos_masivo(df, comercio_id=COMERCIO_ID_DEFAULT):
     df_renombrado = df.rename(columns=mapeo_columnas)
 
     # 2. Categorías existentes
-    res_cats = supabase.table("categorias").select("id, nombre").eq("comercio_id", comercio_id).execute()
+    res_cats = supabase.table("categorias").select("id, nombre, activo").eq("comercio_id", comercio_id).execute()
     cat_map = {c["nombre"].strip().lower(): c["id"] for c in (res_cats.data or [])}
+    # Categorías dadas de baja que el archivo vuelve a usar: se reactivan
+    cats_de_baja = {c["id"] for c in (res_cats.data or []) if not c.get("activo", True)}
     categorias_creadas = 0
 
     # 3. Productos existentes
@@ -1364,6 +1391,9 @@ def importar_productos_masivo(df, comercio_id=COMERCIO_ID_DEFAULT):
                     cat_map[cat_key] = cat_id
         else:
             cat_id = cat_map[cat_key]
+        if cat_id in cats_de_baja:
+            supabase.table("categorias").update({"activo": True, "fecha_baja": None}).eq("id", cat_id).eq("comercio_id", comercio_id).execute()
+            cats_de_baja.discard(cat_id)
 
         if precio_costo > 0 and precio_venta >= precio_costo:
             margen = round(((precio_venta - precio_costo) / precio_costo) * 100.0, 2)
@@ -1382,6 +1412,8 @@ def importar_productos_masivo(df, comercio_id=COMERCIO_ID_DEFAULT):
                 "stock_actual": stock,
                 "stock_minimo": stock_minimo,
                 "puntos_canje": puntos_canje,
+                "activo": True,          # si estaba dado de baja, la carga lo reactiva
+                "fecha_baja": None,
             }
             try:
                 supabase.table("productos").update(payload).eq("id", prod_id).eq("comercio_id", comercio_id).execute()
