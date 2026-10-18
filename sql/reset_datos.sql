@@ -12,7 +12,7 @@
 --                    movimientos_caja (archivado_en = now(), archivado_por = usuario).
 --                    Pone en 0 el saldo_deudor y los puntos de los clientes (salen de las
 --                    ventas que se archivan). El catálogo queda como está.
---   'total'       -> lo anterior + da de baja productos, categorías y clientes
+--   'total'       -> lo anterior (incluido saldo y puntos en 0) + da de baja productos, categorías y clientes
 --                    (activo = false, fecha_baja = now()). Se pueden reactivar desde la app.
 --                    CONSERVA comercios (configuración) y usuarios.
 --   Lo que ya estaba archivado o dado de baja no se vuelve a tocar.
@@ -29,7 +29,7 @@
 --     una venta del comercio no puede quedar a medio registrar durante el reset.
 --
 -- Devuelve jsonb: { ok: true, modo, ventas, movimientos_cuenta, [movimientos_caja],
---                   saldos_reseteados | productos, categorias, clientes }   (filas afectadas)
+--                   saldos_reseteados, [productos, categorias, clientes] }   (filas afectadas)
 --              o: { ok: false, motivo: 'modo_invalido' | 'no_autorizado' | 'pin_incorrecto'
 --                                      | 'bloqueado' | 'usuario_invalido', ... }
 -- =====================================================================
@@ -87,21 +87,22 @@ begin
         end if;
     end loop;
 
-    -- ---------- Según el modo ----------
-    if p_modo = 'movimientos' then
-        if exists (
-            select 1 from information_schema.columns
-             where table_schema = 'public' and table_name = 'clientes' and column_name = 'puntos'
-        ) then
-            update clientes set saldo_deudor = 0, puntos = 0
-             where comercio_id = p_comercio_id and (coalesce(saldo_deudor, 0) <> 0 or coalesce(puntos, 0) <> 0);
-        else
-            update clientes set saldo_deudor = 0
-             where comercio_id = p_comercio_id and coalesce(saldo_deudor, 0) <> 0;
-        end if;
-        get diagnostics v_n = row_count;
-        v_res := v_res || jsonb_build_object('saldos_reseteados', v_n);
+    -- ---------- Saldo y puntos en 0 (en los dos modos: un cliente de baja no puede quedar con deuda) ----------
+    if exists (
+        select 1 from information_schema.columns
+         where table_schema = 'public' and table_name = 'clientes' and column_name = 'puntos'
+    ) then
+        update clientes set saldo_deudor = 0, puntos = 0
+         where comercio_id = p_comercio_id and (coalesce(saldo_deudor, 0) <> 0 or coalesce(puntos, 0) <> 0);
     else
+        update clientes set saldo_deudor = 0
+         where comercio_id = p_comercio_id and coalesce(saldo_deudor, 0) <> 0;
+    end if;
+    get diagnostics v_n = row_count;
+    v_res := v_res || jsonb_build_object('saldos_reseteados', v_n);
+
+    -- ---------- Reinicio total: además se da de baja el catálogo ----------
+    if p_modo = 'total' then
         foreach v_t in array array['productos', 'categorias', 'clientes'] loop
             execute format(
                 'update public.%I set activo = false, fecha_baja = now()

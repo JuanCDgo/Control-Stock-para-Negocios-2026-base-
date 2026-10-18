@@ -70,7 +70,11 @@ do $$
 declare r jsonb; v_antes bigint;
 begin
     select count(*) into v_antes from public.productos where comercio_id = 1;
+    update public.clientes set saldo_deudor = 500, puntos = 10 where comercio_id = 1;
     r := public.resetear_datos_comercio(1, 'total', (select usuario_id from _t), '9999');
+    -- un cliente dado de baja no puede quedar con deuda (la regla de eliminar_cliente)
+    assert not exists (select 1 from public.clientes where comercio_id = 1 and (saldo_deudor <> 0 or puntos <> 0)),
+        'el reinicio total dejó clientes de baja con saldo o puntos';
     assert (r ->> 'ok')::boolean, format('reset total devolvió %s', r);
     assert (select count(*) from public.productos where comercio_id = 1) = v_antes, 'el reset borró productos';
     assert not exists (select 1 from public.productos where comercio_id = 1 and activo), 'quedaron productos activos';

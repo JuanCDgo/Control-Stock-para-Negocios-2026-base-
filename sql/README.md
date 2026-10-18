@@ -12,6 +12,16 @@ Correr en el SQL Editor de Supabase (o con `psql`), **en este orden**, sobre un 
 
 Todos se pueden volver a correr sin romper nada (`if not exists` / `create or replace`).
 
+## Actualizar una base existente
+
+Antes de publicar una versión nueva de la app, volvé a correr **en este orden**:
+
+1. `00_esquema_base.sql` — agrega columnas nuevas (por ejemplo `activo`, `archivado_en`)
+2. `caja_chica.sql`
+3. `usuarios_auth.sql`, `registrar_venta_atomica.sql` y `reset_datos.sql` — actualizan las funciones
+
+Después: `notify pgrst, 'reload schema';`. Si la app nueva corre contra una base sin actualizar, las pantallas de productos, clientes y arqueo fallan.
+
 ## Solo entorno local (`dev/`)
 
 Para un Supabase local (`npx supabase start`), después de los 7 scripts:

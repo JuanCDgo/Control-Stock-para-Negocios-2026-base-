@@ -127,3 +127,41 @@ def test_lo_archivado_no_aparece_en_arqueo_ni_historiales(comercio_test):
     assert models.obtener_arqueo_caja(hoy, comercio_id=comercio_test)["total_operaciones"] == 0
     assert models.obtener_movimientos_cliente(cid, comercio_id=comercio_test) == []
     assert models.obtener_movimientos_caja(comercio_test, hoy) == []
+
+
+def _psql_valor(sql):
+    out = subprocess.run(["docker", "exec", "supabase_db_sb", "psql", "-U", "postgres", "-tAc", sql],
+                         check=True, capture_output=True, text=True)
+    return out.stdout.strip()
+
+
+def test_restaurar_respaldo_viejo_deshace_archivado_y_bajas(comercio_test):
+    # Un respaldo anterior a la baja lógica no trae activo / archivado_en: solo tenía filas vigentes
+    vid = _psql_valor(f"insert into ventas (comercio_id, total_venta, archivado_en) "
+                      f"values ({comercio_test}, 77, now()) returning id").splitlines()[0]
+    codigo = _unico("BAK")
+    pid = models.crear_producto(codigo, "Respaldo", None, 10, 0, False, None, 1, 0, comercio_id=comercio_test)
+    models.eliminar_producto(pid, comercio_id=comercio_test)
+
+    respaldo_viejo = {"tablas": {
+        "productos": [{"id": pid, "codigo": codigo, "nombre": "Respaldo", "precio_costo": 10,
+                       "margen_ganancia": 0, "precio_venta": 10, "usa_precio_manual": False,
+                       "stock_actual": 1, "stock_minimo": 0}],
+        "ventas": [{"id": int(vid), "total_venta": 77, "forma_pago": "Efectivo"}],
+    }}
+    assert models.restaurar_backup_completo(respaldo_viejo, comercio_id=comercio_test)["ok"]
+
+    assert _psql_valor(f"select archivado_en is null from ventas where id = {vid}") == "t"
+    assert models.obtener_producto_por_codigo(codigo, comercio_id=comercio_test)
+
+
+def test_reactivar_producto_reactiva_su_categoria(comercio_test):
+    cat_id = models.crear_categoria(_unico("CatReact"), comercio_id=comercio_test)
+    pid = models.crear_producto(_unico("RC"), "Prod", cat_id, 10, 0, False, None, 1, 0, comercio_id=comercio_test)
+    models.eliminar_producto(pid, comercio_id=comercio_test)
+    models.eliminar_categoria(cat_id, comercio_id=comercio_test)
+
+    models.reactivar("productos", pid, comercio_id=comercio_test)
+
+    assert cat_id in [c["id"] for c in models.get_categorias(comercio_id=comercio_test)], \
+        "el producto volvió en una categoría dada de baja"

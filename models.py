@@ -59,6 +59,13 @@ def dar_de_baja(tabla, registro_id, comercio_id=COMERCIO_ID_DEFAULT):
 @clears_cache
 def reactivar(tabla, registro_id, comercio_id=COMERCIO_ID_DEFAULT):
     _cambiar_estado(tabla, registro_id, True, comercio_id)
+    if tabla == "productos":
+        # Si su categoría está de baja, vuelve con él (si no, al editarlo se perdería la categoría)
+        prod = get_connection().table("productos").select("categoria_id").eq("id", registro_id).execute()
+        cat_id = (prod.data or [{}])[0].get("categoria_id")
+        if cat_id:
+            get_connection().table("categorias").update({"activo": True, "fecha_baja": None}) \
+                .eq("id", cat_id).eq("comercio_id", comercio_id).eq("activo", False).execute()
 
 
 def listar_dados_de_baja(tabla, comercio_id=COMERCIO_ID_DEFAULT):
@@ -1583,6 +1590,14 @@ def restaurar_backup_completo(backup_data, comercio_id=COMERCIO_ID_DEFAULT):
                 fila_limpia = dict(f)
                 if tabla != "detalle_ventas":
                     fila_limpia["comercio_id"] = comercio_id
+                # Respaldo anterior a la baja lógica: solo tenía filas vigentes. Sin esto el
+                # upsert dejaría archivado / de baja lo que la Puesta a cero tocó.
+                if tabla in TABLAS_CON_BAJA:
+                    fila_limpia.setdefault("activo", True)
+                    fila_limpia.setdefault("fecha_baja", None)
+                elif tabla in ("ventas", "movimientos_cuenta", "movimientos_caja"):
+                    fila_limpia.setdefault("archivado_en", None)
+                    fila_limpia.setdefault("archivado_por", None)
                 filas_a_insertar.append(fila_limpia)
 
             if not filas_a_insertar:
