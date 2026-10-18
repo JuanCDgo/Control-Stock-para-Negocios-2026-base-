@@ -210,6 +210,17 @@ st.markdown(
         max-width: 1280px !important;
     }
 
+    /* Subir archivos: Streamlit no traduce este componente. Se reemplazan sus dos textos
+       en inglés ("Upload" y "200MB per file • tipos"); los tipos ya figuran en cada etiqueta. */
+    [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p { font-size: 0 !important; }
+    [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p::after {
+        content: "Elegir archivo"; font-size: 0.875rem;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"] span { font-size: 0 !important; }
+    [data-testid="stFileUploaderDropzoneInstructions"] span::after {
+        content: "Máximo 200 MB"; font-size: 0.8rem;
+    }
+
     /* Separadores con menos aire: los de Streamlit dejan bandas vacías muy grandes */
     hr { margin: 0.75rem 0 !important; }
 
@@ -1931,7 +1942,7 @@ elif modulo == ":material/inventory_2: Productos e Inventario":
                     st.caption("ℹ️ Sin foto asignada actualmente.")
 
                 nueva_foto_subida = st.file_uploader(
-                    "Subir nueva foto (reemplaza o agrega)",
+                    "Subir nueva foto (JPG / PNG, reemplaza la actual)",
                     type=["jpg", "jpeg", "png"],
                     key=f"upload_foto_{kp}"
                 )
@@ -2378,9 +2389,8 @@ elif modulo == ":material/sell: Categorías":
 elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
     st.header(":material/bar_chart: Control Diario & Cierre de Caja")
 
-    col_fecha, col_btn_cierre = st.columns([1, 1.5], gap="large")
-    with col_fecha:
-        fecha_elegida = st.date_input("Fecha de consulta:", value=date.today(), format="DD/MM/YYYY")
+    # Sin columna vacía al lado: en celular se apilaba como un bloque en blanco
+    fecha_elegida = st.date_input("Fecha de consulta:", value=date.today(), format="DD/MM/YYYY", width=320)
 
     resumen = models.obtener_arqueo_caja(fecha_elegida.strftime("%Y-%m-%d"))
 
