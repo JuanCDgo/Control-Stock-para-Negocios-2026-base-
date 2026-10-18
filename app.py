@@ -525,8 +525,33 @@ def _pantalla_login():
                     _intentar_login(usuario_id, pin_txt)
 
 
+def _pantalla_cambio_pin_obligatorio(usuario):
+    """Quien entró con un PIN de ejemplo (1234 / 0000) elige uno propio antes de seguir."""
+    _, centro, _ = st.columns([1, 1.4, 1])
+    with centro:
+        st.markdown("### 🔑 Elegí tu PIN")
+        st.warning("Entraste con un PIN de ejemplo. Por seguridad, elegí uno propio para continuar.")
+        with st.form("form_pin_obligatorio", clear_on_submit=True):
+            pin_actual_in = st.text_input("PIN actual", type="password", max_chars=4)
+            pin_nuevo_in = st.text_input("PIN nuevo (4 dígitos)", type="password", max_chars=4)
+            if st.form_submit_button("Guardar y entrar", type="primary", use_container_width=True):
+                try:
+                    models.cambiar_pin(usuario["id"], pin_actual_in, pin_nuevo_in)
+                    usuario["debe_cambiar_pin"] = False
+                    st.rerun()
+                except models.BusinessLogicError as e:
+                    st.error(str(e))
+                except Exception as e:
+                    st.error(f"⚠️ {e}")
+        st.button("Cerrar sesión", on_click=_cerrar_sesion, use_container_width=True)
+
+
 if not st.session_state.get("usuario"):
     _pantalla_login()
+    st.stop()
+
+if st.session_state["usuario"].get("debe_cambiar_pin"):
+    _pantalla_cambio_pin_obligatorio(st.session_state["usuario"])
     st.stop()
 
 usuario_actual = st.session_state["usuario"]

@@ -1118,6 +1118,8 @@ def cambiar_pin(usuario_id, pin_actual, pin_nuevo):
         raise BusinessLogicError("El PIN actual es incorrecto.")
     if motivo == "pin_invalido":
         raise BusinessLogicError("El PIN nuevo debe tener exactamente 4 dígitos numéricos.")
+    if motivo == "pin_inseguro":
+        raise BusinessLogicError("Elegí un PIN propio: 1234 y 0000 son PIN de ejemplo.")
     raise BusinessLogicError("No se pudo cambiar el PIN (usuario no disponible).")
 
 
