@@ -640,6 +640,12 @@ if total_deuda_side > 0:
 if modulo == "🛒 Punto de Venta (POS)":
     st.header("🛒 Terminal de Punto de Venta")
 
+    # Resumen del carrito siempre a la vista (en celular el carrito queda muy abajo)
+    if st.session_state.carrito:
+        _n_items = len(st.session_state.carrito)
+        _total_carrito = sum(it["subtotal"] for it in st.session_state.carrito)
+        st.info(f"🛒 **{_n_items} ítem(s)** · Total **${_total_carrito:,.2f}** — [Ir a cobrar ↓](#carrito-actual)")
+
     # 1. INTEGRACIÓN CON LECTORA DE CÓDIGO DE BARRAS (EAN / SKU)
     with st.form("form_barcode_scanner", clear_on_submit=True):
         col_scan_txt, col_scan_btn = st.columns([3.5, 1], gap="small")
@@ -840,14 +846,17 @@ if modulo == "🛒 Punto de Venta (POS)":
                 )
                 disponible_para_agregar = stock_actual - cant_en_carrito
                 
-                col_cant, col_btn = st.columns([1.15, 1.05], gap="medium")
+                # Un solo bloque vertical: primero la cantidad, debajo el botón Agregar
+                col_cant = col_btn = st.container()
                 with col_cant:
                     tipo_venta = st.radio("¿Vender por?", ["Cantidad / Peso", "Monto ($)"], horizontal=True)
 
                     if tipo_venta == "Cantidad / Peso":
                         # Accesos rápidos de peso/fracción de un clic (on_click: el callback se
                         # ejecuta antes del re-render, por eso puede modificar la key del widget)
-                        c_q1, c_q2, c_q3, c_q4 = st.columns(4)
+                        # Grilla 2x2: con 4 en fila los textos se cortaban ("2..", "5..")
+                        c_q1, c_q2 = st.columns(2)
+                        c_q3, c_q4 = st.columns(2)
                         with c_q1:
                             st.button("250 g", key="btn_q_250", use_container_width=True,
                                       on_click=_set_pos_cant, args=(0.250,))
@@ -889,7 +898,6 @@ if modulo == "🛒 Punto de Venta (POS)":
                             cantidad = 0.0
 
                 with col_btn:
-                    st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True)
                     deshabilitar_agregar = (disponible_para_agregar <= 0) or (cantidad <= 0)
                     if st.button("➕ AGREGAR AL CARRITO", type="primary", disabled=deshabilitar_agregar, use_container_width=True):
                         if disponible_para_agregar <= 0:
