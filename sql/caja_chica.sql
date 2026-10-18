@@ -11,10 +11,8 @@
 --                             + Cobros de fiados en efectivo + Ingresos extra - Egresos
 --
 -- Reinicio de datos:
---   La función resetear_datos_comercio (sql/reset_datos.sql) ya vacía esta tabla
---   (DELETE ... WHERE comercio_id) al limpiar movimientos. Volvé a ejecutar
---   sql/reset_datos.sql una vez creada esta tabla para que además reinicie su contador de ID
---   y reporte cuántos movimientos de caja borró.
+--   La función resetear_datos_comercio (sql/reset_datos.sql) archiva los movimientos de
+--   esta tabla (archivado_en / archivado_por) al limpiar movimientos: no borra nada.
 --
 -- Es seguro ejecutarlo más de una vez (idempotente). Ejecutar completo en el editor SQL.
 -- NOTA: se asume comercios.id numérico (bigint/int), igual que sql/usuarios_auth.sql.
@@ -32,6 +30,10 @@ create table if not exists public.movimientos_caja (
 
 create index if not exists movimientos_caja_comercio_fecha_idx
     on public.movimientos_caja (comercio_id, fecha desc);
+
+-- La "Puesta a cero" archiva en vez de borrar (null = vigente)
+alter table public.movimientos_caja add column if not exists archivado_en  timestamptz;
+alter table public.movimientos_caja add column if not exists archivado_por bigint;
 
 comment on table  public.movimientos_caja is 'Egresos e ingresos manuales de efectivo (caja chica) por comercio.';
 comment on column public.movimientos_caja.tipo is 'ingreso_extra = entra efectivo al cajón; egreso = sale efectivo del cajón.';

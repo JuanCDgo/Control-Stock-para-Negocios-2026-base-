@@ -101,6 +101,24 @@ create index if not exists detalle_ventas_venta_idx        on public.detalle_ven
 create index if not exists detalle_ventas_producto_idx     on public.detalle_ventas (producto_id);
 create index if not exists movimientos_cuenta_cliente_idx  on public.movimientos_cuenta (comercio_id, cliente_id);
 
+-- ---------- Estados: la app no borra datos de negocio ----------
+-- Catálogos: se dan de baja (activo = false) y se pueden reactivar.
+-- Historial: la "Puesta a cero" lo archiva (archivado_en / archivado_por); null = vigente.
+-- Con "add column if not exists" este bloque también actualiza una base ya instalada.
+alter table public.categorias         add column if not exists activo        boolean not null default true;
+alter table public.categorias         add column if not exists fecha_baja    timestamptz;
+alter table public.productos          add column if not exists activo        boolean not null default true;
+alter table public.productos          add column if not exists fecha_baja    timestamptz;
+alter table public.clientes           add column if not exists activo        boolean not null default true;
+alter table public.clientes           add column if not exists fecha_baja    timestamptz;
+alter table public.ventas             add column if not exists archivado_en  timestamptz;
+alter table public.ventas             add column if not exists archivado_por bigint;
+alter table public.movimientos_cuenta add column if not exists archivado_en  timestamptz;
+alter table public.movimientos_cuenta add column if not exists archivado_por bigint;
+
+create index if not exists ventas_vigentes_fecha_idx
+    on public.ventas (comercio_id, fecha_hora desc) where archivado_en is null;
+
 -- ---------- Comercio inicial ----------
 -- usuarios_auth.sql crea los usuarios del comercio 1 y database.init_db lo lee.
 insert into public.comercios (id, nombre_negocio)
