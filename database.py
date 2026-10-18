@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client, Client
 
+@st.cache_resource
 def get_connection() -> Client:
     """Obtiene la conexión a Supabase usando el archivo secrets.toml."""
     try:
