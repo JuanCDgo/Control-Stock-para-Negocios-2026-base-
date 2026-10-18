@@ -119,9 +119,11 @@ def actualizar_categoria(categoria_id, nuevo_nombre, comercio_id=COMERCIO_ID_DEF
     if not nombre_limpio:
         raise BusinessLogicError("El nombre de la categoría es obligatorio.")
     supabase = get_connection()
-    dup = supabase.table("categorias").select("id").eq("comercio_id", comercio_id).ilike("nombre", nombre_limpio).execute()
+    dup = supabase.table("categorias").select("id, activo").eq("comercio_id", comercio_id).ilike("nombre", nombre_limpio).execute()
     for fila in (dup.data or []):
         if fila["id"] != categoria_id:
+            if not fila.get("activo", True):
+                raise BusinessLogicError(f"La categoría '{nombre_limpio}' está dada de baja: reactivala desde 'Dados de baja'.")
             raise BusinessLogicError(f"Ya existe otra categoría llamada '{nombre_limpio}'.")
     res = supabase.table("categorias").update({"nombre": nombre_limpio}).eq("id", categoria_id).eq("comercio_id", comercio_id).execute()
     if not res.data:
@@ -706,6 +708,7 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
             supabase.table("productos")
             .select("id, nombre, precio_costo, precio_venta, puntos_canje")
             .eq("comercio_id", comercio_id)
+            .eq("activo", True)
             .in_("id", todos_pids)
             .execute()
         )
@@ -715,6 +718,7 @@ def registrar_venta(items, forma_pago, cliente_id=None, comercio_id=COMERCIO_ID_
             supabase.table("productos")
             .select("id, nombre, precio_costo, precio_venta")
             .eq("comercio_id", comercio_id)
+            .eq("activo", True)
             .in_("id", todos_pids)
             .execute()
         )
@@ -1619,15 +1623,20 @@ def restaurar_backup_completo(backup_data, comercio_id=COMERCIO_ID_DEFAULT):
                         total_tabla += len(res.data or lote)
                     elif tabla == "movimientos_caja" and "428C9" in str(e):
                         # Columna id definida como GENERATED ALWAYS en PostgreSQL
-                        existentes = supabase.table("movimientos_caja").select("id, fecha, monto, concepto").eq("comercio_id", comercio_id).execute().data or []
-                        existentes_keys = {(str(ex.get("fecha")), float(ex.get("monto") or 0), str(ex.get("concepto", "")).strip()) for ex in existentes}
+                        existentes = supabase.table("movimientos_caja").select("id, fecha, monto, concepto, archivado_en").eq("comercio_id", comercio_id).execute().data or []
+                        clave = lambda m: (str(m.get("fecha")), float(m.get("monto") or 0), str(m.get("concepto", "")).strip())
+                        existentes_por_clave = {clave(ex): ex for ex in existentes}
                         for item in lote:
                             item_copia = dict(item)
                             item_copia.pop("id", None)
-                            k = (str(item.get("fecha")), float(item.get("monto") or 0), str(item.get("concepto", "")).strip())
-                            if k not in existentes_keys:
+                            k = clave(item)
+                            ex = existentes_por_clave.get(k)
+                            if ex is None:
                                 supabase.table("movimientos_caja").insert(item_copia).execute()
-                                existentes_keys.add(k)
+                                existentes_por_clave[k] = item_copia
+                            elif ex.get("archivado_en") and not item_copia.get("archivado_en"):
+                                # Ya existe pero la Puesta a cero lo archivó: el respaldo lo trae vigente
+                                supabase.table("movimientos_caja").update({"archivado_en": None, "archivado_por": None}).eq("id", ex["id"]).execute()
                             total_tabla += 1
                     else:
                         raise Exception(f"Error al restaurar tabla '{tabla}' (lote {i//batch_size + 1}): {e}")

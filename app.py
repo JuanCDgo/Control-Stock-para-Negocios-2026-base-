@@ -31,7 +31,7 @@ import models
 importlib.reload(models)
 import reportes
 importlib.reload(reportes)
-from formato import fmt_moneda, fmt_moneda_md, fmt_cantidad, fmt_puntos
+from formato import fmt_moneda, fmt_moneda_md, fmt_cantidad, fmt_puntos, fmt_fecha
 from config_manager import (
     cargar_configuracion,
     guardar_configuracion,
@@ -457,10 +457,8 @@ def _seccion_dados_de_baja(tabla, titulo):
         if not bajas:
             st.caption("No hay registros dados de baja.")
         for reg in bajas:
-            fecha = str(reg.get("fecha_baja") or "")[:10]
-            fecha_txt = "/".join(reversed(fecha.split("-"))) if fecha else "-"
             c_nom, c_btn = st.columns([3, 1])
-            c_nom.markdown(f"**{html.escape(str(reg['nombre']))}** · baja: {fecha_txt}")
+            c_nom.markdown(f"**{html.escape(str(reg['nombre']))}** · baja: {fmt_fecha(reg.get('fecha_baja'))}")
             if c_btn.button("Reactivar", key=f"react_{tabla}_{reg['id']}", width="stretch"):
                 try:
                     models.reactivar(tabla, reg["id"])
@@ -2495,11 +2493,11 @@ elif modulo == "🏷️ Categorías":
                 with st.expander(f"📁 {cat['nombre']}"):
                     with st.form(f"form_edit_cat_{cat['id']}"):
                         nuevo_nombre = st.text_input("Renombrar categoría", value=cat['nombre'])
+                        confirma_baja_cat = st.checkbox("Confirmo dar de baja esta categoría", key=f"chk_baja_cat_{cat['id']}")
                         c_btn_edit, c_btn_del = st.columns(2)
-                        
+
                         btn_editar = c_btn_edit.form_submit_button("💾 Guardar Cambios", type="primary")
                         btn_eliminar = c_btn_del.form_submit_button("Dar de baja", type="secondary")
-                        confirma_baja_cat = st.checkbox("Confirmo dar de baja esta categoría", key=f"chk_baja_cat_{cat['id']}")
                         
                         if btn_editar:
                             if nuevo_nombre.strip() != cat['nombre']:

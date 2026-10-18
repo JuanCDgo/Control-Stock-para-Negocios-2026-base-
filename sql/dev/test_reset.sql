@@ -27,6 +27,20 @@ begin
 end $$;
 rollback to savepoint sin_opcionales;
 
+-- ---------- 1b. Base sin migrar (ventas sin archivado_en): falla, no informa ok sin archivar ----------
+savepoint sin_migrar;
+alter table public.ventas drop column archivado_en cascade;
+do $$
+begin
+    begin
+        perform public.resetear_datos_comercio(1, 'movimientos', (select usuario_id from _t), '9999');
+        raise exception 'el reset devolvió ok con ventas sin la columna archivado_en';
+    exception when undefined_column then
+        null;  -- esperado: hay que correr 00_esquema_base.sql
+    end;
+end $$;
+rollback to savepoint sin_migrar;
+
 -- ---------- 2. 'movimientos' archiva: no borra ninguna venta ----------
 savepoint archiva;
 do $$
