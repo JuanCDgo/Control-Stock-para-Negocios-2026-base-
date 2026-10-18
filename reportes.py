@@ -297,6 +297,11 @@ def enviar_email_cierre(
         return False, f"Error al enviar correo por SMTP: {str(e)}"
 
 
+def _total_ticket(datos_ticket: Dict[str, Any]) -> float:
+    """Total del ticket: 'total_venta', o 'total' si falta o es nulo; 0.0 si no hay ninguno."""
+    return float(datos_ticket.get("total_venta") or datos_ticket.get("total") or 0.0)
+
+
 def generar_pdf_ticket_termico(
     datos_ticket: Dict[str, Any],
     nombre_negocio: str = "Mi Comercio"
@@ -448,9 +453,9 @@ def generar_pdf_ticket_termico(
 
     elements.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#333333"), spaceBefore=3, spaceAfter=4))
 
-        # 4. TOTAL
-    total_venta = datos_ticket.get("total_venta", 0.0)
-    elements.append(Paragraph(f"TOTAL: ", total_style))
+    # 4. TOTAL
+    total_venta = _total_ticket(datos_ticket)
+    elements.append(Paragraph(f"TOTAL: ${total_venta:,.2f}", total_style))
     
     puntos_ganados = datos_ticket.get("puntos_ganados", 0)
     puntos_canjeados = datos_ticket.get("puntos_canjeados", 0)
@@ -486,7 +491,7 @@ def armar_mensaje_whatsapp_ticket(datos_ticket: Dict[str, Any]) -> str:
     venta_id = datos_ticket.get("venta_id", "-")
     fecha = datos_ticket.get("fecha", "-")
     forma_pago = datos_ticket.get("forma_pago", "-")
-    total = datos_ticket.get("total_venta", datos_ticket.get("total", 0.0))
+    total = _total_ticket(datos_ticket)
 
     lineas = [
         f"Hola {cliente}! Te compartimos el comprobante de tu compra en *{negocio}*:",
