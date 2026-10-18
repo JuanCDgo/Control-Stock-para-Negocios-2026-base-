@@ -1,12 +1,12 @@
 """
 Interfaz de usuario con Streamlit para el Sistema de Gestión Interna.
 Organizado en 6 módulos principales:
-1. 🛒 Punto de Venta (POS) con Lector de Código de Barras, QR y Cuenta Corriente / Fiado
-2. 👥 Cuentas Corrientes / Clientes ("La Libreta" de fiados, abonos y límites)
-3. 📦 Productos e Inventario (Catálogo, Carga con Fotos, Edición Completa, Ajustes y Alertas)
-4. 🏷️ Categorías
+1. :material/point_of_sale: Punto de Venta (POS) con Lector de Código de Barras, QR y Cuenta Corriente / Fiado
+2. :material/group: Cuentas Corrientes / Clientes ("La Libreta" de fiados, abonos y límites)
+3. :material/inventory_2: Productos e Inventario (Catálogo, Carga con Fotos, Edición Completa, Ajustes y Alertas)
+4. :material/sell: Categorías
 5. 📊 Arqueo de Caja y Cierre Diario en PDF / WhatsApp / Correo
-6. ⚙️ Configuración del Negocio (Datos Bancarios, QR y SMTP)
+6. :material/settings: Configuración del Negocio (Datos Bancarios, QR y SMTP)
 """
 import os
 import io
@@ -231,7 +231,17 @@ st.markdown("""
         h2 { font-size: 1.3rem !important; }
         h3 { font-size: 1.1rem !important; }
         [data-testid="stMainBlockContainer"] { padding-left: 1rem !important; padding-right: 1rem !important; }
+        /* Objetivo táctil mínimo de 44px en campos y selectores (los botones ya lo tienen) */
+        [data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"],
+        [data-testid="stSelectbox"] > div > div { min-height: 44px !important; }
     }
+
+    /* Dígitos de ancho fijo: precios y totales no "bailan" al cambiar */
+    [data-testid="stMain"] { font-variant-numeric: tabular-nums; }
+
+    /* Cobrar: la acción principal del POS, en verde (#047857 cumple contraste AA con texto blanco) */
+    .st-key-btn_cobrar button[kind="primary"] { background-color: #047857 !important; border-color: #047857 !important; }
+    .st-key-btn_cobrar button[kind="primary"]:hover { background-color: #065F46 !important; border-color: #065F46 !important; }
 </style>
 """, unsafe_allow_html=True)
 # -------------------------------------------------------------------
@@ -256,7 +266,7 @@ st.markdown(
     }
 
     /* Botones primarios destacados y cómodos para touch o clic rápido */
-    button[kind="primary"] {
+    button[kind="primary"], button[kind="primaryFormSubmit"] {
         min-height: 46px !important;
         font-weight: 700 !important;
         font-size: 1rem !important;
@@ -271,8 +281,8 @@ st.markdown(
     }
 
     /* Botones secundarios más cómodos */
-    button[kind="secondary"] {
-        min-height: 40px !important;
+    button[kind="secondary"], button[kind="secondaryFormSubmit"] {
+        min-height: 44px !important;   /* objetivo táctil mínimo */
         border-radius: 8px !important;
         font-weight: 500 !important;
     }
@@ -436,14 +446,14 @@ def borrar_archivo_imagen_local(ruta: Optional[str]) -> None:
 # AUTENTICACIÓN Y CONTROL DE ROLES (Dueño / Cajero)
 # ==============================================================================
 MODULOS_CAJERO = [
-    "🛒 Punto de Venta (POS)",
-    "👥 Cuentas Corrientes / Clientes",
+    ":material/point_of_sale: Punto de Venta (POS)",
+    ":material/group: Cuentas Corrientes / Clientes",
 ]
 MODULOS_ADMIN = MODULOS_CAJERO + [
-    "📦 Productos e Inventario",
-    "🏷️ Categorías",
-    "📊 Arqueo de Caja / Control Diario",
-    "⚙️ Configuración del Negocio",
+    ":material/inventory_2: Productos e Inventario",
+    ":material/sell: Categorías",
+    ":material/bar_chart: Arqueo de Caja / Control Diario",
+    ":material/settings: Configuración del Negocio",
 ]
 
 
@@ -481,7 +491,8 @@ def _intentar_login(usuario_id, pin):
     """Valida el PIN contra la base. Siempre limpia el PIN tipeado y vuelve a renderizar."""
     st.session_state["login_pin"] = ""
     try:
-        usuario, error = models.verificar_login(usuario_id, pin)
+        with st.spinner("Verificando PIN..."):
+            usuario, error = models.verificar_login(usuario_id, pin)
     except Exception as e:
         usuario, error = None, f"⚠️ {e}"
     if usuario:
@@ -589,7 +600,7 @@ if logo_sidebar:
         st.image(logo_sidebar, width="stretch")
     st.sidebar.markdown(f"<h1 style='text-align: center; margin-top: -15px;'>{config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>", unsafe_allow_html=True)
 else:
-    st.sidebar.title(f"🏪 {config_negocio.get('nombre_negocio', 'Mi Comercio')}")
+    st.sidebar.title(f":material/storefront: {config_negocio.get('nombre_negocio', 'Mi Comercio')}")
 st.sidebar.caption("Gestión Integral, POS, Clientes, Inventario & Caja")
 
 st.sidebar.markdown(
@@ -688,8 +699,8 @@ if total_deuda_side > 0:
 # ==============================================================================
 # MÓDULO 1: PUNTO DE VENTA (POS) CON LECTOR DE BARRAS & CUENTA CORRIENTE
 # ==============================================================================
-if modulo == "🛒 Punto de Venta (POS)":
-    st.header("🛒 Terminal de Punto de Venta")
+if modulo == ":material/point_of_sale: Punto de Venta (POS)":
+    st.header(":material/point_of_sale: Terminal de Punto de Venta")
 
     # Resumen del carrito siempre a la vista (en celular el carrito queda muy abajo)
     if st.session_state.carrito:
@@ -1239,7 +1250,9 @@ if modulo == "🛒 Punto de Venta (POS)":
                     st.rerun()
             with col_btn_vender:
                 boton_deshabilitado = bloquear_venta_fiado or bloquear_canje_puntos
-                if st.button(f"✅ CONFIRMAR Y COBRAR ({fmt_moneda_md(total_venta)})", type="primary", disabled=boton_deshabilitado, width="stretch"):
+                with st.container(key="btn_cobrar"):
+                    cobrar = st.button(f":material/check_circle: CONFIRMAR Y COBRAR ({fmt_moneda_md(total_venta)})", type="primary", disabled=boton_deshabilitado, width="stretch")
+                if cobrar:
 
                     try:
                         items_venta = [
@@ -1261,11 +1274,12 @@ if modulo == "🛒 Punto de Venta (POS)":
                             for it in st.session_state.carrito if it.get("es_canje")
                         )
 
-                        venta_id, puntos_ganados = models.registrar_venta(
-                            items=items_venta,
-                            forma_pago=forma_pago,
-                            cliente_id=cliente_pos_id
-                        )
+                        with st.spinner("Registrando la venta..."):
+                            venta_id, puntos_ganados = models.registrar_venta(
+                                items=items_venta,
+                                forma_pago=forma_pago,
+                                cliente_id=cliente_pos_id
+                            )
 
                         puntos_balance = 0
                         if cliente_pos_id:
@@ -1321,8 +1335,8 @@ if modulo == "🛒 Punto de Venta (POS)":
 # ==============================================================================
 # MÓDULO 2: CUENTAS CORRIENTES / CLIENTES ("LA LIBRETA")
 # ==============================================================================
-elif modulo == "👥 Cuentas Corrientes / Clientes":
-    st.header("👥 Cuentas Corrientes / Clientes (\"La Libreta\")")
+elif modulo == ":material/group: Cuentas Corrientes / Clientes":
+    st.header(":material/group: Cuentas Corrientes / Clientes (\"La Libreta\")")
     st.caption("Control de fiados, límites de crédito, registro de abonos e historial de cuenta por cliente.")
 
     # Resumen Financiero de Cuentas Corrientes
@@ -1335,13 +1349,13 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
     st.markdown("---")
 
     _tabs_clientes = [
-        "📋 Libreta de Clientes",
-        "➕ Nuevo Cliente",
-        "💵 Registrar Abono / Pago",
-        "📜 Ficha e Historial de Movimientos",
+        ":material/menu_book: Libreta de Clientes",
+        ":material/person_add: Nuevo Cliente",
+        ":material/payments: Registrar Abono / Pago",
+        ":material/history: Ficha e Historial de Movimientos",
     ]
     if es_admin:
-        _tabs_clientes.append("✏️ Modificar / Dar de baja")
+        _tabs_clientes.append(":material/edit: Modificar / Dar de baja")
     _tabs_obj = st.tabs(_tabs_clientes)
     tab_c_lista, tab_c_nuevo, tab_c_abono, tab_c_ficha = _tabs_obj[:4]
     tab_c_edit = _tabs_obj[4] if es_admin else None
@@ -1546,20 +1560,20 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
 # ==============================================================================
 # MÓDULO 3: GESTIÓN DE PRODUCTOS E INVENTARIO
 # ==============================================================================
-elif modulo == "📦 Productos e Inventario":
-    st.header("📦 Gestión de Productos e Inventario")
+elif modulo == ":material/inventory_2: Productos e Inventario":
+    st.header(":material/inventory_2: Gestión de Productos e Inventario")
 
     # Mensaje de confirmación de la acción anterior (sobrevive al st.rerun())
     if "flash_inventario" in st.session_state:
         st.success(st.session_state.pop("flash_inventario"))
 
     tab_catalogo, tab_nuevo, tab_editar, tab_ajuste, tab_alertas, tab_masiva = st.tabs([
-        "📋 Catálogo de Productos",
-        "➕ Nuevo Producto",
-        "✏️ Editar Producto",
-        "🔄 Ajuste de Stock",
-        "🚨 Monitor de Stock Crítico",
-        "📥 Carga Masiva"
+        ":material/list: Catálogo de Productos",
+        ":material/add_box: Nuevo Producto",
+        ":material/edit: Editar Producto",
+        ":material/sync_alt: Ajuste de Stock",
+        ":material/warning: Monitor de Stock Crítico",
+        ":material/upload_file: Carga Masiva"
     ])
 
     # 1. Catálogo Completo
@@ -2467,8 +2481,8 @@ elif modulo == "📦 Productos e Inventario":
 # ==============================================================================
 # MÓDULO 4: GESTIÓN DE CATEGORÍAS
 # ==============================================================================
-elif modulo == "🏷️ Categorías":
-    st.header("🏷️ Gestión de Categorías")
+elif modulo == ":material/sell: Categorías":
+    st.header(":material/sell: Gestión de Categorías")
     col_nueva, col_lista = st.columns([1, 1.2], gap="large")
 
     with col_nueva:
@@ -2531,8 +2545,8 @@ elif modulo == "🏷️ Categorías":
 # ==============================================================================
 # MÓDULO 5: ARQUEO DE CAJA Y CIERRE DIARIO
 # ==============================================================================
-elif modulo == "📊 Arqueo de Caja / Control Diario":
-    st.header("📊 Control Diario & Cierre de Caja")
+elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
+    st.header(":material/bar_chart: Control Diario & Cierre de Caja")
 
     col_fecha, col_btn_cierre = st.columns([1, 1.5], gap="large")
     with col_fecha:
@@ -2738,8 +2752,8 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
 # ==============================================================================
 # MÓDULO 6: CONFIGURACIÓN DEL NEGOCIO
 # ==============================================================================
-elif modulo == "⚙️ Configuración del Negocio":
-    st.header("⚙️ Configuración del Comercio")
+elif modulo == ":material/settings: Configuración del Negocio":
+    st.header(":material/settings: Configuración del Comercio")
     st.caption("Administra tus datos bancarios para cobros con QR y la configuración de notificaciones por email.")
 
     if "flash_config" in st.session_state:
