@@ -150,7 +150,7 @@ begin
 
     return v_venta_id;
 end;
-$;
+$$;
 
 -- Permisos: solo roles de la API (no PUBLIC). Al ser SECURITY INVOKER, respeta RLS
 -- igual que las escrituras directas que hace hoy la app.
