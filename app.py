@@ -450,6 +450,25 @@ MODULOS_ADMIN = MODULOS_CAJERO + [
 
 
 
+def _seccion_dados_de_baja(tabla, titulo):
+    """Expander con los registros dados de baja de `tabla` y un botón para reactivar cada uno."""
+    bajas = models.listar_dados_de_baja(tabla)
+    with st.expander(f"♻️ {titulo} ({len(bajas)})"):
+        if not bajas:
+            st.caption("No hay registros dados de baja.")
+        for reg in bajas:
+            fecha = str(reg.get("fecha_baja") or "")[:10]
+            fecha_txt = "/".join(reversed(fecha.split("-"))) if fecha else "-"
+            c_nom, c_btn = st.columns([3, 1])
+            c_nom.markdown(f"**{html.escape(str(reg['nombre']))}** · baja: {fecha_txt}")
+            if c_btn.button("Reactivar", key=f"react_{tabla}_{reg['id']}", width="stretch"):
+                try:
+                    models.reactivar(tabla, reg["id"])
+                    st.rerun()
+                except models.BusinessLogicError as e:
+                    st.error(str(e))
+
+
 def _cerrar_sesion():
     """Callback de 'Cerrar Sesión': descarta el usuario y los datos de la caja en curso."""
     st.session_state.pop("usuario", None)
@@ -1322,7 +1341,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
         "📜 Ficha e Historial de Movimientos",
     ]
     if es_admin:
-        _tabs_clientes.append("✏️ Modificar / Eliminar Cliente")
+        _tabs_clientes.append("✏️ Modificar / Dar de baja")
     _tabs_obj = st.tabs(_tabs_clientes)
     tab_c_lista, tab_c_nuevo, tab_c_abono, tab_c_ficha = _tabs_obj[:4]
     tab_c_edit = _tabs_obj[4] if es_admin else None
@@ -1509,16 +1528,19 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                         except models.BusinessLogicError as e:
                             st.error(f"Error: {e}")
 
-                with st.expander("🗑️ Zona de Baja: Eliminar Cliente"):
-                    st.warning("Solo se permite eliminar clientes sin deuda pendiente ($ 0,00).")
-                    chk_del_cli = st.checkbox("Confirmo que deseo eliminar este cliente", key=f"chk_del_c_{cid}")
-                    if st.button("Confirmar Eliminación de Cliente", type="secondary", disabled=not chk_del_cli, key=f"btn_del_c_{cid}"):
+                with st.expander("Dar de baja cliente"):
+                    st.info("Se oculta de las listas y conserva su historial de cuenta corriente. "
+                            "Se puede reactivar. Solo clientes sin deuda ($ 0,00).")
+                    chk_del_cli = st.checkbox("Confirmo dar de baja a este cliente", key=f"chk_del_c_{cid}")
+                    if st.button("Dar de baja", type="secondary", disabled=not chk_del_cli, key=f"btn_del_c_{cid}"):
                         try:
                             models.eliminar_cliente(cid)
-                            st.success("Cliente eliminado exitosamente.")
+                            st.success("Cliente dado de baja.")
                             st.rerun()
                         except models.BusinessLogicError as e:
-                            st.error(f"No se pudo eliminar: {e}")
+                            st.error(f"No se pudo dar de baja: {e}")
+
+            _seccion_dados_de_baja("clientes", "Clientes dados de baja")
 
 
 # ==============================================================================
@@ -2179,19 +2201,20 @@ elif modulo == "📦 Productos e Inventario":
                         st.error(f"Error inesperado al guardar: {e}")
 
             with col_del_btn:
-                with st.expander("🗑️ Zona de Baja: Eliminar Producto"):
-                    st.warning("⚠️ Acción irreversible. No se puede eliminar si posee ventas históricas registradas.")
-                    confirmar_del = st.checkbox("Confirmo que deseo eliminar este producto", key=f"chk_del_{pid}")
-                    if st.button("🗑️ Confirmar Eliminación", type="secondary", disabled=not confirmar_del, width="stretch", key=f"btn_del_{pid}"):
+                with st.expander("Dar de baja producto"):
+                    st.info("Sale del catálogo y del POS; sus ventas quedan intactas. Se puede reactivar.")
+                    confirmar_del = st.checkbox("Confirmo dar de baja este producto", key=f"chk_del_{pid}")
+                    if st.button("Dar de baja", type="secondary", disabled=not confirmar_del, width="stretch", key=f"btn_del_{pid}"):
                         try:
                             models.eliminar_producto(pid)
-                            borrar_archivo_imagen_local(prod_actual.get("imagen_path"))
-                            st.session_state["flash_inventario"] = f"🗑️ Producto '{prod_actual['nombre']}' eliminado correctamente."
+                            st.session_state["flash_inventario"] = f"Producto '{prod_actual['nombre']}' dado de baja."
                             st.rerun()
                         except models.BusinessLogicError as e:
-                            st.error(f"No se pudo eliminar: {e}")
+                            st.error(f"No se pudo dar de baja: {e}")
                         except Exception as e:
-                            st.error(f"Error al eliminar: {e}")
+                            st.error(f"Error al dar de baja: {e}")
+
+        _seccion_dados_de_baja("productos", "Productos dados de baja")
 
     # 4. Ajuste Rápido de Stock
     with tab_ajuste:
@@ -2475,7 +2498,8 @@ elif modulo == "🏷️ Categorías":
                         c_btn_edit, c_btn_del = st.columns(2)
                         
                         btn_editar = c_btn_edit.form_submit_button("💾 Guardar Cambios", type="primary")
-                        btn_eliminar = c_btn_del.form_submit_button("🗑️ Eliminar", type="secondary")
+                        btn_eliminar = c_btn_del.form_submit_button("Dar de baja", type="secondary")
+                        confirma_baja_cat = st.checkbox("Confirmo dar de baja esta categoría", key=f"chk_baja_cat_{cat['id']}")
                         
                         if btn_editar:
                             if nuevo_nombre.strip() != cat['nombre']:
@@ -2490,15 +2514,18 @@ elif modulo == "🏷️ Categorías":
                             else:
                                 st.info("No se realizaron cambios en el nombre.")
                                 
-                        if btn_eliminar:
+                        if btn_eliminar and not confirma_baja_cat:
+                            st.warning("Marcá la confirmación para dar de baja la categoría.")
+                        elif btn_eliminar:
                             try:
                                 models.eliminar_categoria(cat['id'])
-                                st.success(f"Categoría '{cat['nombre']}' eliminada con éxito.")
+                                st.success(f"Categoría '{cat['nombre']}' dada de baja.")
                                 st.rerun()
                             except models.BusinessLogicError as e:
                                 st.warning(str(e))
                             except Exception as e:
-                                st.error(f"Error al eliminar: {e}")
+                                st.error(f"Error al dar de baja: {e}")
+        _seccion_dados_de_baja("categorias", "Categorías dadas de baja")
 
 
 # ==============================================================================
@@ -2905,7 +2932,7 @@ elif modulo == "⚙️ Configuración del Negocio":
         st.stop()
 
     # La versión cambia tras cada intento (éxito o error) para que los widgets de confirmación
-    # vuelvan a su estado inicial: el botón rojo nunca queda "armado" para un segundo borrado.
+    # vuelvan a su estado inicial: el botón rojo nunca queda "armado" para una segunda puesta a cero.
     ver_reset = st.session_state.get("reset_ver", 0)
 
     # Resultado del intento anterior (sobrevive al st.rerun())
@@ -2917,35 +2944,36 @@ elif modulo == "⚙️ Configuración del Negocio":
             st.error(msg_reset[1])
 
     with st.expander("⚠️ Zona de Mantenimiento / Puesta a Cero", expanded=bool(msg_reset)):
-        st.error("🚨 **ZONA DE PELIGRO - ACCIÓN IRREVERSIBLE**")
+        st.warning("**Puesta a cero de datos de prueba**")
         st.markdown(
-            "Pensada para limpiar los datos de prueba antes de empezar a operar. "
-            "**No hay forma de deshacerla.** Se conservan siempre la configuración del comercio y los usuarios."
+            "Pensada para limpiar los datos de prueba antes de empezar a operar. **No se borra nada:** "
+            "las ventas y movimientos quedan archivados (siguen en la base y en el respaldo) y dejan de verse "
+            "en la app. Se conservan siempre la configuración del comercio y los usuarios."
         )
 
-        OPC_MOV = "Vaciar solo movimientos y pruebas"
-        OPC_TOTAL = "Reinicio de fábrica total"
+        OPC_MOV = "Archivar movimientos y pruebas"
+        OPC_TOTAL = "Reinicio total: archivar y dar de baja todo"
         opcion_reset = st.radio(
-            "¿Qué querés borrar?",
+            "¿Qué querés poner a cero?",
             [OPC_MOV, OPC_TOTAL],
             key=f"rst_modo_{ver_reset}",
         )
         if opcion_reset == OPC_MOV:
             st.info(
-                "Borra **ventas, detalle de ventas, movimientos de cuenta corriente** (y caja/arqueos si existen) "
+                "Archiva **ventas, movimientos de cuenta corriente y de caja chica** "
                 "y deja en **0** el saldo y los puntos de todos los clientes. "
-                "**Conserva** productos, categorías y clientes."
+                "Productos, categorías y clientes no cambian."
             )
         else:
             st.warning(
-                "Borra **todo**: ventas, movimientos, **productos, categorías, clientes** y fotos de productos. "
-                "**Conserva** únicamente la configuración del comercio y los usuarios."
+                "Archiva ventas y movimientos y además **da de baja productos, categorías y clientes**. "
+                "Se pueden reactivar desde cada pantalla, en 'Dados de baja'."
             )
 
-        rst_confirma = st.checkbox("Entiendo que esta acción es irreversible", key=f"rst_chk_{ver_reset}")
+        rst_confirma = st.checkbox("Entiendo que las ventas y movimientos dejan de verse en la app", key=f"rst_chk_{ver_reset}")
         rst_palabra = st.text_input(
-            "Para habilitar el botón, escribí la palabra BORRAR (en mayúsculas):",
-            placeholder="BORRAR",
+            "Para habilitar el botón, escribí la palabra ARCHIVAR (en mayúsculas):",
+            placeholder="ARCHIVAR",
             key=f"rst_txt_{ver_reset}",
         )
         rst_pin = st.text_input(
@@ -2957,7 +2985,7 @@ elif modulo == "⚙️ Configuración del Negocio":
 
         rst_habilitado = (
             rst_confirma
-            and rst_palabra.strip() == "BORRAR"
+            and rst_palabra.strip() == "ARCHIVAR"
             and len(rst_pin) == 4
             and rst_pin.isdigit()
         )
@@ -2971,7 +2999,7 @@ elif modulo == "⚙️ Configuración del Negocio":
         )
         with st.container(key="zona_peligro_btn"):
             ejecutar_reset = st.button(
-                "💣 BORRAR DATOS AHORA",
+                "PONER A CERO AHORA",
                 type="primary",
                 disabled=not rst_habilitado,
                 width="stretch",
@@ -2990,28 +3018,25 @@ elif modulo == "⚙️ Configuración del Negocio":
                     )
                 partes = [
                     f"{resultado.get('ventas', 0)} ventas",
-                    f"{resultado.get('detalle_ventas', 0)} renglones de venta",
                     f"{resultado.get('movimientos_cuenta', 0)} movimientos de cuenta corriente",
+                    f"{resultado.get('movimientos_caja', 0)} movimientos de caja",
                 ]
+                texto = "Se archivaron: " + ", ".join(partes) + "."
                 if modo_reset == models.RESET_MOVIMIENTOS:
-                    partes.append(f"saldo de {resultado.get('saldos_reseteados', 0)} cliente(s) puesto en $0")
+                    texto += f" Saldo y puntos en 0 para {resultado.get('saldos_reseteados', 0)} cliente(s)."
                 else:
-                    partes += [
-                        f"{resultado.get('productos', 0)} productos",
-                        f"{resultado.get('categorias', 0)} categorías",
-                        f"{resultado.get('clientes', 0)} clientes",
-                        f"{resultado.get('fotos_eliminadas', 0)} fotos",
-                    ]
+                    texto += (f" Se dieron de baja: {resultado.get('productos', 0)} productos, "
+                              f"{resultado.get('categorias', 0)} categorías y {resultado.get('clientes', 0)} clientes.")
 
-                # Vaciar carrito y estado del POS (pueden apuntar a productos/clientes ya borrados)
+                # Vaciar carrito y estado del POS (pueden apuntar a productos/clientes dados de baja)
                 st.session_state.carrito = []
                 st.session_state["_pos_reset_cant"] = True
                 st.session_state["reset_msg"] = (
                     "ok",
-                    "🎉 **Puesta a cero completada con éxito.** Se eliminó: " + ", ".join(partes) + ".",
+                    "🎉 **Puesta a cero completada.** " + texto,
                 )
             except models.BusinessLogicError as e:
-                st.session_state["reset_msg"] = ("error", f"❌ No se borró nada: {e}")
+                st.session_state["reset_msg"] = ("error", f"❌ No se cambió nada: {e}")
             except Exception as e:
                 st.session_state["reset_msg"] = (
                     "error",

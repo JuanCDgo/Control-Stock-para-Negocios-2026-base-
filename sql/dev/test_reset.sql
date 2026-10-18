@@ -30,15 +30,17 @@ rollback to savepoint sin_opcionales;
 -- ---------- 2. 'movimientos' archiva: no borra ninguna venta ----------
 savepoint archiva;
 do $$
-declare r jsonb; v_antes bigint; v_max bigint; v_nuevo bigint;
+declare r jsonb; v_antes bigint; v_max bigint; v_nuevo bigint; v_vigentes bigint[];
 begin
     select count(*), max(id) into v_antes, v_max from public.ventas where comercio_id = 1;
+    select array_agg(id) into v_vigentes from public.ventas where comercio_id = 1 and archivado_en is null;
     r := public.resetear_datos_comercio(1, 'movimientos', (select usuario_id from _t), '9999');
     assert (r ->> 'ok')::boolean, format('reset devolvió %s', r);
     assert (select count(*) from public.ventas where comercio_id = 1) = v_antes, 'el reset borró ventas';
     assert not exists (select 1 from public.ventas where comercio_id = 1 and archivado_en is null),
         'quedaron ventas sin archivar';
-    assert not exists (select 1 from public.ventas where comercio_id = 1
+    -- solo las que estaban vigentes: lo archivado antes conserva su archivado_por
+    assert not exists (select 1 from public.ventas where id = any(v_vigentes)
                         and archivado_por is distinct from (select usuario_id from _t)),
         'archivado_por no es el usuario que hizo el reset';
     -- los IDs no se reutilizan

@@ -1044,8 +1044,6 @@ def resetear_datos(modo, usuario_id, pin, comercio_id=COMERCIO_ID_DEFAULT):
             raise BusinessLogicError("Modo de reinicio inválido.")
         raise BusinessLogicError(_mensaje_fallo_login(res))
 
-    fotos_eliminadas = 0
-    res["fotos_eliminadas"] = fotos_eliminadas
     return res
 
 
