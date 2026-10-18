@@ -1315,7 +1315,8 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                     c1, c2, c3, c4 = st.columns([2, 1.5, 1.5, 1.5])
                     with c1:
                         st.markdown(f"### {c['nombre']}")
-                        st.caption(f"📞 Tel: {c['telefono'] or 'Sin teléfono'} | ✉️ {c['email'] or 'Sin correo'}")
+                        tel_txt = f"[{c['telefono']}]({reportes.armar_url_whatsapp(c['telefono'], '')})" if c['telefono'] else "Sin teléfono"
+                        st.caption(f"📞 Tel: {tel_txt} | ✉️ {c['email'] or 'Sin correo'}")
                     with c2:
                         limite_txt = f"{fmt_moneda_md(c['limite_credito'])}" if c['limite_credito'] > 0 else "Sin límite"
                         st.markdown(f"**Límite de Crédito:** {limite_txt}")
@@ -2554,7 +2555,10 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
     
     col_cierre_btn, _ = st.columns([1.5, 1])
     with col_cierre_btn:
-        ejecutar_cierre = st.button("🔒 Realizar Cierre de Caja del Día", type="primary", use_container_width=True)
+        sin_ventas = resumen["total_operaciones"] == 0
+        ejecutar_cierre = st.button("🔒 Realizar Cierre de Caja del Día", type="primary", use_container_width=True, disabled=sin_ventas)
+        if sin_ventas:
+            st.caption("No hay ventas para cerrar en esta fecha.")
 
     if ejecutar_cierre:
         st.session_state["cierre_activo"] = True
