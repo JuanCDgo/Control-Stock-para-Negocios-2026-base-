@@ -12,6 +12,8 @@ from email.mime.application import MIMEApplication
 from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
 
+from formato import fmt_moneda, fmt_cantidad, fmt_puntos
+
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.platypus import (
@@ -105,8 +107,8 @@ def generar_pdf_cierre_caja(
 
     kpi_data = [
         [
-            Paragraph("<font size='9' color='#64748B'>TOTAL FACTURADO</font><br/><br/><b><font size='16' color='#0F172A'>${:,.2f}</font></b>".format(total_vendido), styles["Normal"]),
-            Paragraph("<font size='9' color='#64748B'>GANANCIA ESTIMADA</font><br/><br/><b><font size='16' color='#16A34A'>${:,.2f}</font></b>".format(ganancia_estimada), styles["Normal"]),
+            Paragraph("<font size='9' color='#64748B'>TOTAL FACTURADO</font><br/><br/><b><font size='16' color='#0F172A'>{}</font></b>".format(fmt_moneda(total_vendido)), styles["Normal"]),
+            Paragraph("<font size='9' color='#64748B'>GANANCIA ESTIMADA</font><br/><br/><b><font size='16' color='#16A34A'>{}</font></b>".format(fmt_moneda(ganancia_estimada)), styles["Normal"]),
             Paragraph("<font size='9' color='#64748B'>TOTAL DE OPERACIONES</font><br/><br/><b><font size='16' color='#2563EB'>{}</font></b>".format(total_operaciones), styles["Normal"])
         ]
     ]
@@ -145,7 +147,7 @@ def generar_pdf_cierre_caja(
             tabla_pago_data.append([
                 Paragraph(item["forma_pago"], cell_normal),
                 Paragraph(str(item["operaciones"]), cell_normal),
-                Paragraph(f"${item['total']:,.2f}", cell_bold),
+                Paragraph(f"{fmt_moneda(item['total'])}", cell_bold),
                 Paragraph(f"{pct:.1f}%", cell_normal)
             ])
 
@@ -188,7 +190,7 @@ def generar_pdf_cierre_caja(
                 Paragraph(f"#{v['id']}", cell_normal),
                 Paragraph(hora_str, cell_normal),
                 Paragraph(v.get("forma_pago", ""), cell_normal),
-                Paragraph(f"${v.get('total_venta', 0.0):,.2f}", cell_bold)
+                Paragraph(f"{fmt_moneda(v.get('total_venta', 0.0))}", cell_bold)
             ])
 
         t_ventas = Table(tabla_ventas_data, colWidths=[100, 120, 180, 140])
@@ -258,11 +260,11 @@ def enviar_email_cierre(
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
                         <td style="padding: 8px 0; color: #64748b;">Total Facturado:</td>
-                        <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 16px; color: #0f172a;">${total_vendido:,.2f}</td>
+                        <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 16px; color: #0f172a;">{fmt_moneda(total_vendido)}</td>
                     </tr>
                     <tr>
                         <td style="padding: 8px 0; color: #64748b;">Ganancia Estimada:</td>
-                        <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 16px; color: #16a34a;">${ganancia_estimada:,.2f}</td>
+                        <td style="padding: 8px 0; text-align: right; font-weight: bold; font-size: 16px; color: #16a34a;">{fmt_moneda(ganancia_estimada)}</td>
                     </tr>
                     <tr>
                         <td style="padding: 8px 0; color: #64748b;">Cantidad de Operaciones:</td>
@@ -295,6 +297,11 @@ def enviar_email_cierre(
 
     except Exception as e:
         return False, f"Error al enviar correo por SMTP: {str(e)}"
+
+
+def _total_ticket(datos_ticket: Dict[str, Any]) -> float:
+    """Total del ticket: 'total_venta', o 'total' si falta o es nulo; 0.0 si no hay ninguno."""
+    return float(datos_ticket.get("total_venta") or datos_ticket.get("total") or 0.0)
 
 
 def generar_pdf_ticket_termico(
@@ -423,7 +430,7 @@ def generar_pdf_ticket_termico(
 
     for it in items:
         cant = it.get("cantidad", 1)
-        cant_str = f"{cant:g}" if isinstance(cant, (int, float)) else str(cant)
+        cant_str = f"{fmt_cantidad(cant)}" if isinstance(cant, (int, float)) else str(cant)
         nombre_it = it.get("nombre", "Artículo")
         p_unit = it.get("precio_unitario", 0.0)
         subt = it.get("subtotal", 0.0)
@@ -431,8 +438,8 @@ def generar_pdf_ticket_termico(
         tabla_items_data.append([
             Paragraph(cant_str, normal_ticket),
             Paragraph(nombre_it[:30], normal_ticket),
-            Paragraph(f"${p_unit:,.2f}", normal_ticket),
-            Paragraph(f"${subt:,.2f}", bold_ticket)
+            Paragraph(f"{fmt_moneda(p_unit)}", normal_ticket),
+            Paragraph(f"{fmt_moneda(subt)}", bold_ticket)
         ])
 
     t_articulos = Table(tabla_items_data, colWidths=[26, 96, 40, 42])
@@ -448,21 +455,21 @@ def generar_pdf_ticket_termico(
 
     elements.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#333333"), spaceBefore=3, spaceAfter=4))
 
-        # 4. TOTAL
-    total_venta = datos_ticket.get("total_venta", 0.0)
-    elements.append(Paragraph(f"TOTAL: ", total_style))
+    # 4. TOTAL
+    total_venta = _total_ticket(datos_ticket)
+    elements.append(Paragraph(f"TOTAL: {fmt_moneda(total_venta)}", total_style))
     
     puntos_ganados = datos_ticket.get("puntos_ganados", 0)
     puntos_canjeados = datos_ticket.get("puntos_canjeados", 0)
     if puntos_canjeados > 0:
         elements.append(Spacer(1, 2))
-        elements.append(Paragraph(f"Puntos canjeados: -{puntos_canjeados:,}", normal_ticket))
+        elements.append(Paragraph(f"Puntos canjeados: -{fmt_puntos(puntos_canjeados)}", normal_ticket))
     if puntos_ganados > 0:
         elements.append(Spacer(1, 2))
-        elements.append(Paragraph(f"Puntos ganados: +{puntos_ganados:,.2f}", normal_ticket))
+        elements.append(Paragraph(f"Puntos ganados: +{fmt_puntos(puntos_ganados)}", normal_ticket))
     if puntos_canjeados > 0 or puntos_ganados > 0:
         puntos_balance = datos_ticket.get("puntos_balance", 0)
-        elements.append(Paragraph(f"Balance total de puntos: {puntos_balance:,.2f}", normal_ticket))
+        elements.append(Paragraph(f"Balance total de puntos: {fmt_puntos(puntos_balance)}", normal_ticket))
 
     elements.append(Spacer(1, 4))
 
@@ -486,7 +493,7 @@ def armar_mensaje_whatsapp_ticket(datos_ticket: Dict[str, Any]) -> str:
     venta_id = datos_ticket.get("venta_id", "-")
     fecha = datos_ticket.get("fecha", "-")
     forma_pago = datos_ticket.get("forma_pago", "-")
-    total = datos_ticket.get("total_venta", datos_ticket.get("total", 0.0))
+    total = _total_ticket(datos_ticket)
 
     lineas = [
         f"Hola {cliente}! Te compartimos el comprobante de tu compra en *{negocio}*:",
@@ -494,18 +501,18 @@ def armar_mensaje_whatsapp_ticket(datos_ticket: Dict[str, Any]) -> str:
         f"- *Ticket Nro:* #{venta_id}",
         f"- *Fecha:* {fecha}",
         f"- *Medio de Pago:* {forma_pago}",
-        f"- *Total Abonado:* ${total:,.2f}",
+        f"- *Total Abonado:* {fmt_moneda(total)}",
     ]
 
     puntos_ganados = datos_ticket.get("puntos_ganados", 0)
     puntos_canjeados = datos_ticket.get("puntos_canjeados", 0)
     if puntos_canjeados > 0:
-        lineas.append(f"- *Puntos canjeados:* -{puntos_canjeados:,}")
+        lineas.append(f"- *Puntos canjeados:* -{fmt_puntos(puntos_canjeados)}")
     if puntos_ganados > 0:
-        lineas.append(f"- *Puntos ganados:* +{puntos_ganados:,.2f}")
+        lineas.append(f"- *Puntos ganados:* +{fmt_puntos(puntos_ganados)}")
     if puntos_canjeados > 0 or puntos_ganados > 0:
         puntos_balance = datos_ticket.get("puntos_balance", 0)
-        lineas.append(f"- *Balance de puntos:* {puntos_balance:,.2f}")
+        lineas.append(f"- *Balance de puntos:* {fmt_puntos(puntos_balance)}")
 
     lineas.extend([
         "",
@@ -529,28 +536,47 @@ def armar_mensaje_whatsapp_cierre(
     lineas = [
         f"*CIERRE DE CAJA - {nombre_negocio.upper()}*",
         f"- *Fecha:* {fecha_str}",
-        f"- *Total Facturado:* ${total_vendido:,.2f}",
-        f"- *Ganancia Estimada:* ${ganancia:,.2f}",
+        f"- *Total Facturado:* {fmt_moneda(total_vendido)}",
+        f"- *Ganancia Estimada:* {fmt_moneda(ganancia)}",
         f"- *Total Operaciones:* {total_ops} tickets",
         "",
         "*Desglose por Medio de Pago:*"
     ]
     for dp in resumen.get("desglose_por_forma_pago", []):
-        lineas.append(f"- {dp['forma_pago']}: ${dp['total']:,.2f} ({dp['operaciones']} ops)")
+        lineas.append(f"- {dp['forma_pago']}: {fmt_moneda(dp['total'])} ({dp['operaciones']} ops)")
 
     return "\n".join(lineas)
 
 
+def normalizar_tel_ar(telefono: Optional[str]) -> Optional[str]:
+    """
+    Celular argentino en formato WhatsApp (549 + característica + número, 13 dígitos).
+    Acepta '351 5987654', '0351 15 412-3456', '+54 9 351 ...'. Devuelve None si no se puede
+    armar un número completo (ej. '15 4123456' sin característica): mejor no linkear que
+    mandar a un número equivocado.
+    """
+    d = re.sub(r"\D", "", str(telefono or ""))
+    if d.startswith("54"):
+        d = d[2:]
+        if len(d) == 11 and d.startswith("9"):
+            d = d[1:]
+    d = d.lstrip("0")
+    if len(d) == 12:
+        # Característica de 2 a 4 dígitos seguida del "15" de celular local
+        # ponytail: heurística; no distingue una característica que termine en 15
+        for largo_area in (2, 3, 4):
+            if d[largo_area:largo_area + 2] == "15":
+                d = d[:largo_area] + d[largo_area + 2:]
+                break
+    return f"549{d}" if len(d) == 10 else None
+
+
 def armar_url_whatsapp(telefono: Optional[str], mensaje: str) -> str:
     """
-    Limpia el teléfono a formato internacional y retorna el enlace wa.me 
-    con codificación de texto limpia y segura para URL.
+    Enlace wa.me con el texto codificado para URL. Si el teléfono no se puede normalizar,
+    el enlace no lleva número y WhatsApp deja elegir el contacto.
     """
-    tel_limpio = re.sub(r"\D", "", str(telefono or ""))
-    if len(tel_limpio) == 10:
-        tel_limpio = f"549{tel_limpio}"
-    elif len(tel_limpio) > 0 and not tel_limpio.startswith("54"):
-        tel_limpio = f"54{tel_limpio}"
+    tel_limpio = normalizar_tel_ar(telefono)
 
     texto_encoded = urllib.parse.quote(mensaje, safe="")
     if tel_limpio:

@@ -9,6 +9,5 @@
     "smtp_puerto": 587,
     "smtp_usuario": "",
     "smtp_password": "",
-    "email_destinatario": "",
-    "admin_password": "admin123"
+    "email_destinatario": ""
 }

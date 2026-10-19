@@ -2,11 +2,14 @@
 -- resetear_datos_comercio: puesta a cero de datos de prueba (TRANSACCIONAL)
 --
 -- Requiere haber ejecutado antes sql/usuarios_auth.sql (usa verificar_login).
+-- caja_chica.sql y fidelidad_puntos.sql son opcionales: si no se corrieron, sus tablas /
+-- columnas simplemente no se tocan.
 --
 -- Modos:
 --   'movimientos' -> borra ventas, detalle_ventas, movimientos_cuenta (y, si existen con
 --                    columna comercio_id: movimientos_caja, arqueos, arqueo_caja, cierres_caja)
---                    y pone saldo_deudor = 0. CONSERVA productos, categorías y clientes.
+--                    y pone en 0 el saldo_deudor y los puntos de los clientes (los puntos
+--                    salen de las ventas que se borran). CONSERVA productos, categorías y clientes.
 --   'total'       -> lo anterior + productos, categorías y clientes.
 --                    CONSERVA comercios (configuración) y usuarios.
 --
@@ -18,10 +21,13 @@
 --   * Todo ocurre en una sola transacción: si algo falla, no se borra NADA.
 --   * Un PIN incorrecto NO lanza excepción (devuelve ok=false): si lo hiciera, el rollback
 --     desharía el contador de intentos y se podría adivinar el PIN sin bloqueo.
---   * Los contadores de ID (tickets, etc.) se reinician a 1 SOLO en tablas que quedaron
---     totalmente vacías (si hay datos de otro comercio, no se tocan).
+--   * Los contadores de ID NO se reinician: con varios comercios en la misma base, volver
+--     a 1 podía chocar con ventas de otro comercio todavía sin confirmar (clave duplicada).
+--   * Toma pg_advisory_xact_lock('control_stock.comercio', comercio_id), el mismo lock que registrar_venta_atomica:
+--     una venta del comercio no puede quedar a medio registrar durante el reset.
 --
 -- Devuelve jsonb: { ok: true, modo, detalle_ventas, movimientos_cuenta, ventas,
+--                   [movimientos_caja, arqueos, arqueo_caja, cierres_caja: si existen],
 --                   saldos_reseteados | productos, categorias, clientes }
 --              o: { ok: false, motivo: 'modo_invalido' | 'no_autorizado' | 'pin_incorrecto'
 --                                      | 'bloqueado' | 'usuario_invalido', ... }
@@ -43,11 +49,8 @@ declare
     v_n        bigint;
     v_res      jsonb;
     v_t        text;
-    v_tablas   text[];
-    v_vacia    boolean;
-    v_seq      text;
-    -- Tablas opcionales de caja/arqueo (hoy el arqueo se calcula desde ventas)
-    v_opcionales constant text[] := array['arqueos', 'arqueo_caja', 'cierres_caja'];
+    -- Tablas opcionales de caja/arqueo: las crean otros scripts (o no existen)
+    v_opcionales constant text[] := array['movimientos_caja', 'arqueos', 'arqueo_caja', 'cierres_caja'];
 begin
     if p_modo is null or p_modo not in ('movimientos', 'total') then
         return jsonb_build_object('ok', false, 'motivo', 'modo_invalido');
@@ -66,6 +69,9 @@ begin
 
     v_res := jsonb_build_object('ok', true, 'modo', p_modo);
 
+    -- Un reset por comercio a la vez y sin ventas del comercio a medio registrar
+    perform pg_advisory_xact_lock(hashtext('control_stock.comercio'), p_comercio_id::int);
+
     -- ---------- Movimientos (orden respetando claves foráneas) ----------
     delete from detalle_ventas
      where venta_id in (select id from ventas where comercio_id = p_comercio_id);
@@ -76,31 +82,35 @@ begin
     get diagnostics v_n = row_count;
     v_res := v_res || jsonb_build_object('movimientos_cuenta', v_n);
 
-    delete from movimientos_caja where comercio_id = p_comercio_id;
-    get diagnostics v_n = row_count;
-    v_res := v_res || jsonb_build_object('movimientos_caja', v_n);
-
-    delete from ventas where comercio_id = p_comercio_id;
-    get diagnostics v_n = row_count;
-    v_res := v_res || jsonb_build_object('ventas', v_n);
-
     foreach v_t in array v_opcionales loop
         if exists (
             select 1 from information_schema.columns
              where table_schema = 'public' and table_name = v_t and column_name = 'comercio_id'
         ) then
             execute format('delete from public.%I where comercio_id = $1', v_t) using p_comercio_id;
+            get diagnostics v_n = row_count;
+            v_res := v_res || jsonb_build_object(v_t, v_n);
         end if;
     end loop;
 
+    delete from ventas where comercio_id = p_comercio_id;
+    get diagnostics v_n = row_count;
+    v_res := v_res || jsonb_build_object('ventas', v_n);
+
     -- ---------- Según el modo ----------
     if p_modo = 'movimientos' then
-        update clientes set saldo_deudor = 0, puntos = 0
-         where comercio_id = p_comercio_id and (coalesce(saldo_deudor, 0) <> 0 or coalesce(puntos, 0) <> 0);
+        if exists (
+            select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'clientes' and column_name = 'puntos'
+        ) then
+            update clientes set saldo_deudor = 0, puntos = 0
+             where comercio_id = p_comercio_id and (coalesce(saldo_deudor, 0) <> 0 or coalesce(puntos, 0) <> 0);
+        else
+            update clientes set saldo_deudor = 0
+             where comercio_id = p_comercio_id and coalesce(saldo_deudor, 0) <> 0;
+        end if;
         get diagnostics v_n = row_count;
         v_res := v_res || jsonb_build_object('saldos_reseteados', v_n);
-
-        v_tablas := array['detalle_ventas', 'movimientos_cuenta', 'movimientos_caja', 'ventas'];
     else
         delete from productos where comercio_id = p_comercio_id;
         get diagnostics v_n = row_count;
@@ -113,21 +123,7 @@ begin
         delete from clientes where comercio_id = p_comercio_id;
         get diagnostics v_n = row_count;
         v_res := v_res || jsonb_build_object('clientes', v_n);
-
-        v_tablas := array['detalle_ventas', 'movimientos_cuenta', 'movimientos_caja', 'ventas',
-                          'productos', 'categorias', 'clientes'];
     end if;
-
-    -- ---------- Reiniciar contadores de ID solo en tablas totalmente vacías ----------
-    foreach v_t in array v_tablas loop
-        execute format('select not exists (select 1 from public.%I)', v_t) into v_vacia;
-        if v_vacia then
-            v_seq := pg_get_serial_sequence(format('public.%I', v_t), 'id');
-            if v_seq is not null then
-                perform setval(v_seq, 1, false);
-            end if;
-        end if;
-    end loop;
 
     return v_res;
 end;

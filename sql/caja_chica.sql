@@ -11,10 +11,9 @@
 --                             + Cobros de fiados en efectivo + Ingresos extra - Egresos
 --
 -- Reinicio de datos:
---   La función resetear_datos_comercio (sql/reset_datos.sql) ya vacía esta tabla
---   (DELETE ... WHERE comercio_id) al limpiar movimientos. Volvé a ejecutar
---   sql/reset_datos.sql una vez creada esta tabla para que además reinicie su contador de ID
---   y reporte cuántos movimientos de caja borró.
+--   La función resetear_datos_comercio (sql/reset_datos.sql) vacía esta tabla
+--   (DELETE ... WHERE comercio_id) al limpiar movimientos y reporta cuántos borró.
+--   Los contadores de ID no se reinician.
 --
 -- Es seguro ejecutarlo más de una vez (idempotente). Ejecutar completo en el editor SQL.
 -- NOTA: se asume comercios.id numérico (bigint/int), igual que sql/usuarios_auth.sql.

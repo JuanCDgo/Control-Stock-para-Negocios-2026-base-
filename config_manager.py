@@ -5,7 +5,7 @@ Persiste la configuración en un archivo JSON local en el directorio del proyect
 """
 import os
 import json
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config_negocio.json")
 
@@ -21,8 +21,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "smtp_puerto": 587,
     "smtp_usuario": "",
     "smtp_password": "",
-    "email_destinatario": "",
-    "admin_password": "admin123"
+    "email_destinatario": ""
 }
 
 
@@ -49,26 +48,3 @@ def guardar_configuracion(nueva_config: Dict[str, Any]) -> bool:
         return True
     except Exception:
         return False
-
-
-def validar_clave_admin(clave: str) -> bool:
-    """Valida si la clave ingresada coincide con la clave de dueño guardada."""
-    cfg = cargar_configuracion()
-    clave_guardada = str(cfg.get("admin_password", "admin123")).strip()
-    return str(clave).strip() == clave_guardada
-
-
-def cambiar_clave_admin(clave_actual: str, nueva_clave: str) -> Tuple[bool, str]:
-    """Valida la clave actual y actualiza la clave de administrador."""
-    if not validar_clave_admin(clave_actual):
-        return False, "La contraseña actual es incorrecta."
-
-    nueva_limpia = nueva_clave.strip()
-    if len(nueva_limpia) < 4:
-        return False, "La nueva contraseña debe tener al menos 4 caracteres."
-
-    cfg = cargar_configuracion()
-    cfg["admin_password"] = nueva_limpia
-    if guardar_configuracion(cfg):
-        return True, "Contraseña de administrador actualizada con éxito."
-    return False, "Error al guardar la nueva contraseña en disco."
