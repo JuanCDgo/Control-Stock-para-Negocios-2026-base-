@@ -1,12 +1,12 @@
 """
 Interfaz de usuario con Streamlit para el Sistema de Gestión Interna.
 Organizado en 6 módulos principales:
-1. 🛒 Punto de Venta (POS) con Lector de Código de Barras, QR y Cuenta Corriente / Fiado
-2. 👥 Cuentas Corrientes / Clientes ("La Libreta" de fiados, abonos y límites)
-3. 📦 Productos e Inventario (Catálogo, Carga con Fotos, Edición Completa, Ajustes y Alertas)
-4. 🏷️ Categorías
-5. 📊 Arqueo de Caja y Cierre Diario en PDF / WhatsApp / Correo
-6. ⚙️ Configuración del Negocio (Datos Bancarios, QR y SMTP)
+1. :material/point_of_sale: Punto de Venta (POS) con Lector de Código de Barras, QR y Cuenta Corriente / Fiado
+2. :material/group: Cuentas Corrientes / Clientes ("La Libreta" de fiados, abonos y límites)
+3. :material/inventory_2: Productos e Inventario (Catálogo, Carga con Fotos, Edición Completa, Ajustes y Alertas)
+4. :material/sell: Categorías
+5. Arqueo de Caja y Cierre Diario en PDF / WhatsApp / Correo
+6. :material/settings: Configuración del Negocio (Datos Bancarios, QR y SMTP)
 """
 import os
 import io
@@ -43,77 +43,21 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Configuración general de la página Streamlit
 st.set_page_config(
     page_title="Sistema de Gestión Comercial",
-    page_icon="🏪",
+    page_icon=":material/storefront:",
     layout="wide",
-    initial_sidebar_state="auto"  # abierto en PC, cerrado en celular
+    initial_sidebar_state="collapsed"  # la navegación está en la barra superior
 )
 
 
 # ---------------- ESTILOS GLOBALES (SaaS Dashboard) ----------------
 st.markdown("""
 <style>
-    /* Botones principales - Primary */
-    .stButton > button[kind="primary"] {
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        padding: 0.5rem 1rem !important;
-        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -2px rgba(37, 99, 235, 0.2) !important;
-        transition: all 0.2s ease-in-out !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 6px 8px -1px rgba(37, 99, 235, 0.3), 0 4px 6px -2px rgba(37, 99, 235, 0.3) !important;
-    }
-    
-    /* Botones secundarios */
-    .stButton > button[kind="secondary"] {
-        border-radius: 8px !important;
-        font-weight: 500 !important;
-        transition: all 0.2s ease-in-out !important;
-    }
-
-    /* Contenedores con border=True (Tarjetas / Paneles) */
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 10px !important;
-        border: 1px solid #E2E8F0 !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
-        background-color: #FFFFFF !important;
-    }
-
-    /* Métricas nativas de Streamlit (st.metric) */
+    /* Tarjetas de métricas (st.metric): misma superficie y borde que los paneles */
     [data-testid="stMetric"] {
-        background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
-        padding: 1rem !important;
-        border-radius: 10px !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
-    }
-    [data-testid="stMetricValue"] {
-        font-size: 1.8rem !important;
-        font-weight: 700 !important;
-        color: #0F172A !important;
-    }
-
-    /* Info / Success / Warning / Error alerts (Badges/Alerts) */
-    [data-testid="stAlert"] {
-        border-radius: 8px !important;
-        border: none !important;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02) !important;
-    }
-
-    /* Expander */
-    [data-testid="stExpander"] {
-        border-radius: 8px !important;
-        border: 1px solid #E2E8F0 !important;
-        background-color: #FFFFFF !important;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02) !important;
-    }
-
-    /* Tablas / DataFrames */
-    [data-testid="stDataFrame"] {
-        border-radius: 8px !important;
-        overflow: hidden !important;
-        border: 1px solid #E2E8F0 !important;
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 0.5rem;
+        padding: 0.875rem 1rem;
     }
 
     /* Vista Compacta de Productos / Inventario */
@@ -227,11 +171,18 @@ st.markdown("""
 
     /* Celular: títulos más chicos y menos margen para que entre más contenido */
     @media (max-width: 640px) {
-        h1 { font-size: 1.6rem !important; }
-        h2 { font-size: 1.3rem !important; }
-        h3 { font-size: 1.1rem !important; }
         [data-testid="stMainBlockContainer"] { padding-left: 1rem !important; padding-right: 1rem !important; }
+        /* Objetivo táctil mínimo de 44px en campos y selectores (los botones ya lo tienen) */
+        [data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"],
+        [data-testid="stSelectbox"] > div > div { min-height: 44px !important; }
     }
+
+    /* Dígitos de ancho fijo: precios y totales no "bailan" al cambiar */
+    [data-testid="stMain"] { font-variant-numeric: tabular-nums; }
+
+    /* Cobrar: la acción principal del POS, en verde (#047857 cumple contraste AA con texto blanco) */
+    .st-key-btn_cobrar button[kind="primary"] { background-color: #047857 !important; border-color: #047857 !important; }
+    .st-key-btn_cobrar button[kind="primary"]:hover { background-color: #065F46 !important; border-color: #065F46 !important; }
 </style>
 """, unsafe_allow_html=True)
 # -------------------------------------------------------------------
@@ -246,53 +197,64 @@ config_negocio = cargar_configuracion()
 st.markdown(
     """
     <style>
-    /* Reducir espacio superior e inferior en la pantalla principal */
+    /* Sin el encabezado de Streamlit: tapaba el comienzo de la página en celular. La app
+       tiene su propia barra superior y avisos de carga en las acciones lentas. */
+    [data-testid="stHeader"], [data-testid="stDecoration"] { display: none !important; }
+
+    /* Contenido centrado con ancho máximo: en monitores grandes no se estira de borde a borde */
     .block-container {
-        padding-top: 1.8rem !important;
+        padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-        max-width: 98% !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+        max-width: 1280px !important;
     }
 
-    /* Botones primarios destacados y cómodos para touch o clic rápido */
-    button[kind="primary"] {
-        min-height: 46px !important;
-        font-weight: 700 !important;
-        font-size: 1rem !important;
-        border-radius: 8px !important;
-        letter-spacing: 0.3px !important;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.08) !important;
-        transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+    /* Subir archivos: Streamlit no traduce este componente. Se reemplazan sus dos textos
+       en inglés ("Upload" y "200MB per file • tipos"); los tipos ya figuran en cada etiqueta. */
+    [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p { font-size: 0 !important; }
+    [data-testid="stFileUploaderDropzone"] button [data-testid="stMarkdownContainer"] p::after {
+        content: "Elegir archivo"; font-size: 0.875rem;
     }
-    button[kind="primary"]:hover {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.14) !important;
+    [data-testid="stFileUploaderDropzoneInstructions"] span { font-size: 0 !important; }
+    [data-testid="stFileUploaderDropzoneInstructions"] span::after {
+        content: "Máximo 200 MB"; font-size: 0.8rem;
     }
 
-    /* Botones secundarios más cómodos */
-    button[kind="secondary"] {
-        min-height: 40px !important;
-        border-radius: 8px !important;
-        font-weight: 500 !important;
+    /* Separadores con menos aire: los de Streamlit dejan bandas vacías muy grandes */
+    hr { margin: 0.75rem 0 !important; }
+
+    /* Objetivo táctil mínimo de 44px en todos los botones */
+    button[kind="primary"], button[kind="primaryFormSubmit"],
+    button[kind="secondary"], button[kind="secondaryFormSubmit"] {
+        min-height: 44px !important;
+    }
+    button[kind="primary"], button[kind="primaryFormSubmit"] { font-weight: 700 !important; }
+
+    /* Foco visible al navegar con teclado (Streamlit no lo marca en todos los botones) */
+    button:focus-visible, [role="tab"]:focus-visible, [role="radio"]:focus-visible,
+    [role="combobox"]:focus-visible, input:focus-visible {
+        outline: 2px solid #2563EB !important;
+        outline-offset: 2px !important;
     }
 
-    /* Contenedores con borde suave y moderno */
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        border-radius: 10px !important;
-        border-color: #E2E8F0 !important;
-        background-color: #FFFFFF !important;
+    /* Respetar la preferencia del sistema de reducir movimiento */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition: none !important; animation: none !important; }
     }
 
-    /* Reducir gap excesivo en bloques verticales */
-    div[data-testid="stVerticalBlock"] > div {
-        gap: 0.65rem !important;
-    }
-
-    /* Pestañas (Tabs) estilizadas */
-    button[data-baseweb="tab"] {
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
+    /* Celular: campos con letra de 16px para que iOS no haga zoom al tocarlos,
+       y las filas de métricas en grilla de 2x2 en vez de una columna larga */
+    @media (max-width: 640px) {
+        input, textarea { font-size: 16px !important; }
+        [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [data-testid="stMetric"]) {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+        }
+        [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] [data-testid="stMetric"]) > [data-testid="stColumn"] {
+            flex: 1 1 calc(50% - 0.5rem) !important;
+            min-width: calc(50% - 0.5rem) !important;
+        }
     }
     </style>
     """,
@@ -302,9 +264,6 @@ st.markdown(
 # Inicialización de estado de sesión para el carrito de compras y preferencias de vista
 if "carrito" not in st.session_state:
     st.session_state.carrito = []
-
-if "pos_vista_ficha" not in st.session_state:
-    st.session_state.pos_vista_ficha = "Compacta"
 
 if "inv_vista_ficha" not in st.session_state:
     st.session_state.inv_vista_ficha = "Compacta"
@@ -436,14 +395,14 @@ def borrar_archivo_imagen_local(ruta: Optional[str]) -> None:
 # AUTENTICACIÓN Y CONTROL DE ROLES (Dueño / Cajero)
 # ==============================================================================
 MODULOS_CAJERO = [
-    "🛒 Punto de Venta (POS)",
-    "👥 Cuentas Corrientes / Clientes",
+    ":material/point_of_sale: Punto de Venta (POS)",
+    ":material/group: Cuentas Corrientes / Clientes",
 ]
 MODULOS_ADMIN = MODULOS_CAJERO + [
-    "📦 Productos e Inventario",
-    "🏷️ Categorías",
-    "📊 Arqueo de Caja / Control Diario",
-    "⚙️ Configuración del Negocio",
+    ":material/inventory_2: Productos e Inventario",
+    ":material/sell: Categorías",
+    ":material/bar_chart: Arqueo de Caja / Control Diario",
+    ":material/settings: Configuración del Negocio",
 ]
 
 
@@ -453,7 +412,7 @@ MODULOS_ADMIN = MODULOS_CAJERO + [
 def _seccion_dados_de_baja(tabla, titulo):
     """Expander con los registros dados de baja de `tabla` y un botón para reactivar cada uno."""
     bajas = models.listar_dados_de_baja(tabla)
-    with st.expander(f"♻️ {titulo} ({len(bajas)})"):
+    with st.expander(f":material/restore: {titulo} ({len(bajas)})"):
         if not bajas:
             st.caption("No hay registros dados de baja.")
         for reg in bajas:
@@ -479,9 +438,10 @@ def _intentar_login(usuario_id, pin):
     """Valida el PIN contra la base. Siempre limpia el PIN tipeado y vuelve a renderizar."""
     st.session_state["login_pin"] = ""
     try:
-        usuario, error = models.verificar_login(usuario_id, pin)
+        with st.spinner("Verificando PIN..."):
+            usuario, error = models.verificar_login(usuario_id, pin)
     except Exception as e:
-        usuario, error = None, f"⚠️ {e}"
+        usuario, error = None, f"{e}"
     if usuario:
         st.session_state["usuario"] = usuario
     else:
@@ -504,7 +464,7 @@ def _pantalla_login():
     try:
         usuarios = models.listar_usuarios_login()
     except Exception as e:
-        st.error(f"⚠️ {e}")
+        st.error(f"{e}")
         st.stop()
     if not usuarios:
         st.warning("No hay usuarios activos configurados. Ejecutá sql/usuarios_auth.sql en Supabase.")
@@ -513,17 +473,17 @@ def _pantalla_login():
     _, centro, _ = st.columns([1, 1.4, 1])
     with centro:
         st.markdown(
-            f"<h1 style='text-align:center; margin-bottom:0;'>🏬 {config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>"
+            f"<h1 style='text-align:center; margin-bottom:0;'>{config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>"
             "<p style='text-align:center; color:#64748B;'>Elegí tu usuario e ingresá tu PIN</p>",
             unsafe_allow_html=True,
         )
 
-        iconos = {models.ROL_ADMIN: "👑", models.ROL_CAJERO: "👤"}
+        iconos = {models.ROL_ADMIN: ":material/shield_person:", models.ROL_CAJERO: ":material/person:"}
         por_id = {u["id"]: u for u in usuarios}
         usuario_id = st.radio(
             "Usuario",
             options=list(por_id.keys()),
-            format_func=lambda i: f"{iconos.get(por_id[i]['rol'], '👤')} {por_id[i]['nombre']}",
+            format_func=lambda i: f"{iconos.get(por_id[i]['rol'], ':material/person:')} {por_id[i]['nombre']}",
             horizontal=True,
             key="login_usuario_id"
         )
@@ -536,7 +496,7 @@ def _pantalla_login():
             pin_txt = st.text_input("Ingrese su PIN", type="password", max_chars=4)
             if st.form_submit_button("Ingresar", type="primary", width="stretch"):
                 if not pin_txt:
-                    st.session_state["login_error"] = "⚠️ El PIN no puede estar vacío."
+                    st.session_state["login_error"] = "El PIN no puede estar vacío."
                     st.rerun()
                 else:
                     _intentar_login(usuario_id, pin_txt)
@@ -546,7 +506,7 @@ def _pantalla_cambio_pin_obligatorio(usuario):
     """Quien entró con un PIN de ejemplo (1234 / 0000) elige uno propio antes de seguir."""
     _, centro, _ = st.columns([1, 1.4, 1])
     with centro:
-        st.markdown("### 🔑 Elegí tu PIN")
+        st.markdown("### Elegí tu PIN")
         st.warning("Entraste con un PIN de ejemplo. Por seguridad, elegí uno propio para continuar.")
         with st.form("form_pin_obligatorio", clear_on_submit=True):
             pin_actual_in = st.text_input("PIN actual", type="password", max_chars=4)
@@ -559,7 +519,7 @@ def _pantalla_cambio_pin_obligatorio(usuario):
                 except models.BusinessLogicError as e:
                     st.error(str(e))
                 except Exception as e:
-                    st.error(f"⚠️ {e}")
+                    st.error(f"{e}")
         st.button("Cerrar sesión", on_click=_cerrar_sesion, width="stretch")
 
 
@@ -578,144 +538,115 @@ modulos_permitidos = MODULOS_ADMIN if es_admin else MODULOS_CAJERO
 
 
 # ==============================================================================
-# BARRA LATERAL (NAVEGACIÓN Y ALERTAS GLOBALES)
+# BARRA SUPERIOR: comercio, avisos, usuario y navegación.
+# Reemplaza la barra lateral: ocupaba 300px fijos y en pantallas de 800-1100px
+# (laptops con escala de Windows, tablets) aplastaba las columnas del contenido.
 # ==============================================================================
-logo_sidebar = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
-if logo_sidebar:
-    col_l1, col_l2, col_l3 = st.sidebar.columns([1, 1.5, 1])
-    with col_l2:
-        st.image(logo_sidebar, width="stretch")
-    st.sidebar.markdown(f"<h1 style='text-align: center; margin-top: -15px;'>{config_negocio.get('nombre_negocio', 'Mi Comercio')}</h1>", unsafe_allow_html=True)
-else:
-    st.sidebar.title(f"🏪 {config_negocio.get('nombre_negocio', 'Mi Comercio')}")
-st.sidebar.caption("Gestión Integral, POS, Clientes, Inventario & Caja")
+ETIQUETAS_MODULOS = {
+    ":material/point_of_sale: Punto de Venta (POS)": ":material/point_of_sale: Vender",
+    ":material/group: Cuentas Corrientes / Clientes": ":material/group: Clientes",
+    ":material/inventory_2: Productos e Inventario": ":material/inventory_2: Productos",
+    ":material/sell: Categorías": ":material/sell: Categorías",
+    ":material/bar_chart: Arqueo de Caja / Control Diario": ":material/bar_chart: Caja",
+    ":material/settings: Configuración del Negocio": ":material/settings: Ajustes",
+}
 
-st.sidebar.markdown(
-    f"👤 **{usuario_actual.get('nombre', '')}** · "
-    f"{models.ROL_ETIQUETAS.get(usuario_actual.get('rol'), 'Cajero')}"
-)
-st.sidebar.button("🚪 Cerrar Sesión", key="btn_logout", width="stretch", on_click=_cerrar_sesion)
-with st.sidebar.expander("🔑 Cambiar mi PIN"):
-    with st.form("form_cambiar_pin", clear_on_submit=True):
-        pin_actual_in = st.text_input("PIN actual", type="password", max_chars=4)
-        pin_nuevo_in = st.text_input("PIN nuevo (4 dígitos)", type="password", max_chars=4)
-        if st.form_submit_button("Guardar PIN", width="stretch"):
-            try:
-                models.cambiar_pin(usuario_actual["id"], pin_actual_in, pin_nuevo_in)
-                st.success("✅ PIN actualizado.")
-            except models.BusinessLogicError as e:
-                st.error(str(e))
-            except Exception as e:
-                st.error(f"⚠️ {e}")
+prods_criticos_global = models.obtener_productos_bajo_stock()
+cant_criticos = len(prods_criticos_global)
+resumen_deuda_global = models.obtener_resumen_deuda_total()
 
-st.sidebar.markdown("---")
+with st.container(key="barra_superior"):
+    col_marca, col_acciones = st.columns([3, 2], vertical_alignment="center")
+    with col_marca:
+        with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+            logo_barra = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
+            if logo_barra:
+                st.image(logo_barra, width=40)
+            st.markdown(
+                f"<span style='font-size:1.125rem; font-weight:700'>{html.escape(config_negocio.get('nombre_negocio', 'Mi Comercio'))}</span>",
+                unsafe_allow_html=True,
+            )
 
-modulo = st.sidebar.radio("Navegación", modulos_permitidos)
+    with col_acciones:
+        with st.container(horizontal=True, horizontal_alignment="right", vertical_alignment="center", gap="small"):
+            if cant_criticos > 0:
+                with st.popover(f"{cant_criticos} con stock bajo", icon=":material/warning:"):
+                    for p_crit in prods_criticos_global:
+                        st.markdown(
+                            f"**{html.escape(str(p_crit['nombre']))}** · stock {fmt_cantidad(p_crit['stock_actual'])} "
+                            f"(mín. {fmt_cantidad(p_crit['stock_minimo'])})"
+                        )
+            if resumen_deuda_global.get("total_deuda", 0) > 0:
+                st.badge(f"Fiado: {fmt_moneda_md(resumen_deuda_global['total_deuda'])}",
+                         icon=":material/account_balance_wallet:", color="orange")
+
+            with st.popover(usuario_actual.get("nombre", ""), icon=":material/account_circle:"):
+                st.caption(models.ROL_ETIQUETAS.get(usuario_actual.get("rol"), "Cajero"))
+                with st.form("form_cambiar_pin", clear_on_submit=True):
+                    st.markdown("**Cambiar mi PIN**")
+                    pin_actual_in = st.text_input("PIN actual", type="password", max_chars=4)
+                    pin_nuevo_in = st.text_input("PIN nuevo (4 dígitos)", type="password", max_chars=4)
+                    if st.form_submit_button("Guardar PIN", width="stretch"):
+                        try:
+                            models.cambiar_pin(usuario_actual["id"], pin_actual_in, pin_nuevo_in)
+                            st.success("PIN actualizado.")
+                        except models.BusinessLogicError as e:
+                            st.error(str(e))
+                        except Exception as e:
+                            st.error(f"No se pudo cambiar el PIN: {e}")
+                st.button("Cerrar sesión", key="btn_logout", icon=":material/logout:",
+                          width="stretch", on_click=_cerrar_sesion)
+
+    modulo = st.segmented_control(
+        "Sección",
+        options=modulos_permitidos,
+        format_func=lambda m: ETIQUETAS_MODULOS.get(m, m),
+        default=modulos_permitidos[0],
+        required=True,
+        key="nav_modulo",
+        label_visibility="collapsed",
+        width="stretch",
+    )
 
 # Guardia defensiva: aunque el menú ya está filtrado, nunca se renderiza un módulo no permitido
 if modulo not in modulos_permitidos:
-    st.error("⛔ No tenés permisos para acceder a esta sección.")
+    st.error("No tenés permisos para acceder a esta sección.")
     st.stop()
-
-st.sidebar.markdown("---")
-
-# Tarjetas Métricas y Alertas Globales en Barra Lateral
-prods_criticos_global = models.obtener_productos_bajo_stock()
-cant_criticos = len(prods_criticos_global)
-
-if cant_criticos > 0:
-    st.sidebar.markdown(
-        f"""
-        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 9px; padding: 10px 14px; margin-bottom: 10px;">
-            <div style="font-size: 0.72rem; color: #991B1B; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                ⚠️ Alerta de Inventario
-            </div>
-            <div style="font-size: 1.05rem; font-weight: 800; color: #DC2626; margin-top: 2px;">
-                {cant_criticos} artículo(s) bajo stock
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    with st.sidebar.expander("🔎 Ver artículos en alerta"):
-        for p_crit in (prods_criticos_global.to_dict("records") if hasattr(prods_criticos_global, "to_dict") else prods_criticos_global):
-            st.markdown(
-                f"- **{p_crit['nombre']}** (`{p_crit['codigo']}`): "
-                f"<span style='color:#DC2626; font-weight:bold;'>{p_crit['stock_actual']}</span> / mín. {p_crit['stock_minimo']}",
-                unsafe_allow_html=True
-            )
-else:
-    st.sidebar.markdown(
-        """
-        <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 9px; padding: 10px 14px; margin-bottom: 10px;">
-            <div style="font-size: 0.72rem; color: #166534; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                📦 Estado del Stock
-            </div>
-            <div style="font-size: 0.95rem; font-weight: 700; color: #15803D; margin-top: 2px;">
-                ✅ Catálogo con stock saludable
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-# KPI de Cuentas Corrientes en la Barra Lateral
-resumen_deuda_sidebar = models.obtener_resumen_deuda_total()
-total_deuda_side = resumen_deuda_sidebar.get("total_deuda", 0.0)
-clientes_deuda_side = resumen_deuda_sidebar.get("clientes_con_deuda", 0)
-
-if total_deuda_side > 0:
-    st.sidebar.markdown(
-        f"""
-        <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 9px; padding: 10px 14px; margin-bottom: 12px;">
-            <div style="font-size: 0.72rem; color: #92400E; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                💸 Deuda Total en Clientes
-            </div>
-            <div style="font-size: 1.25rem; font-weight: 800; color: #B45309; margin-top: 2px;">
-                {fmt_moneda(total_deuda_side)}
-            </div>
-            <div style="font-size: 0.75rem; color: #A16207; margin-top: 2px;">
-                👤 {clientes_deuda_side} cliente(s) con saldo en cuenta corriente
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 
 # ==============================================================================
 # MÓDULO 1: PUNTO DE VENTA (POS) CON LECTOR DE BARRAS & CUENTA CORRIENTE
 # ==============================================================================
-if modulo == "🛒 Punto de Venta (POS)":
-    st.header("🛒 Terminal de Punto de Venta")
+if modulo == ":material/point_of_sale: Punto de Venta (POS)":
+    st.header(":material/point_of_sale: Terminal de Punto de Venta")
 
     # Resumen del carrito siempre a la vista (en celular el carrito queda muy abajo)
     if st.session_state.carrito:
         _n_items = len(st.session_state.carrito)
         _total_carrito = sum(it["subtotal"] for it in st.session_state.carrito)
-        st.info(f"🛒 **{_n_items} ítem(s)** · Total **{fmt_moneda_md(_total_carrito)}** — [Ir a cobrar ↓](#carrito-actual)")
+        st.info(f"**{_n_items} ítem(s)** · Total **{fmt_moneda_md(_total_carrito)}** — [Ir a cobrar ↓](#carrito-actual)",
+                icon=":material/shopping_cart:")
 
     # 1. INTEGRACIÓN CON LECTORA DE CÓDIGO DE BARRAS (EAN / SKU)
     with st.form("form_barcode_scanner", clear_on_submit=True):
-        col_scan_txt, col_scan_btn = st.columns([3.5, 1], gap="small")
+        col_scan_txt, col_scan_btn = st.columns([4, 1], gap="small", vertical_alignment="bottom")
         with col_scan_txt:
             barcode_in = st.text_input(
-                "🔍 Escanear Código de Barras (EAN / SKU):",
+                "Código de barras",
                 placeholder="Pase el lector óptico aquí o ingrese el código y presione Enter...",
                 key="barcode_scanner_field"
             )
         with col_scan_btn:
-            st.write("")
-            btn_scan = st.form_submit_button("⚡ Cargar por Código", width="stretch")
+            btn_scan = st.form_submit_button("Agregar", icon=":material/barcode_scanner:", width="stretch")
 
         if btn_scan and barcode_in:
             prod_esc = models.obtener_producto_por_codigo(barcode_in)
             if not prod_esc:
-                st.error(f"❌ Código '{barcode_in}' no registrado en el catálogo.")
+                st.error(f"Código '{barcode_in}' no registrado en el catálogo.")
             else:
                 cant_en_cart = sum(it["cantidad"] for it in st.session_state.carrito if it["producto_id"] == prod_esc["id"])
                 if prod_esc["stock_actual"] - cant_en_cart <= 0:
-                    st.error(f"❌ Stock insuficiente para '{prod_esc['nombre']}' (Stock actual: {prod_esc['stock_actual']}).")
+                    st.error(f"Stock insuficiente para '{prod_esc['nombre']}' (Stock actual: {prod_esc['stock_actual']}).")
                 else:
                     encontrado = False
                     for it in st.session_state.carrito:
@@ -737,34 +668,17 @@ if modulo == "🛒 Punto de Venta (POS)":
                             "es_canje": False,
                             "precio_original": prod_esc["precio_venta"]
                         })
-                    st.toast(f"🛒 Agregado: {prod_esc['nombre']} x1 ({fmt_moneda_md(prod_esc['precio_venta'])})", icon="📦")
+                    st.toast(f"Agregado: {prod_esc['nombre']} x1 ({fmt_moneda_md(prod_esc['precio_venta'])})", icon=":material/shopping_cart:")
                     st.rerun()
 
-    st.markdown("---")
-
-    col_izq, col_der = st.columns([1.05, 1.35], gap="medium")
+    col_izq, col_der = st.columns([1, 1], gap="large")
 
     with col_izq:
-        c_tit, c_vista = st.columns([1.5, 1.5], gap="small")
-        with c_tit:
-            st.subheader("Búsqueda Manual")
-        with c_vista:
-            opciones_vista = ["Grande", "Compacta", "Sin imagen"]
-            valor_actual = st.session_state.get("pos_vista_ficha", "Compacta")
-            vista_idx = opciones_vista.index(valor_actual) if valor_actual in opciones_vista else 1
-            vista_elegida = st.radio(
-                "Vista Ficha:",
-                options=opciones_vista,
-                index=vista_idx,
-                horizontal=True,
-                key="radio_pos_vista_ficha",
-                help="Ajustá el tamaño visual de la ficha del producto."
-            )
-            st.session_state.pos_vista_ficha = vista_elegida
+        st.subheader("Buscar producto")
 
         productos_db = models.obtener_productos()
         if len(productos_db) == 0:
-            st.warning("⚠️ No hay productos registrados. Por favor, agregue productos en la sección de Inventario.")
+            st.warning("No hay productos registrados. Por favor, agregue productos en la sección de Inventario.")
         else:
             prods_todos = productos_db.to_dict('records') if hasattr(productos_db, "to_dict") else productos_db
 
@@ -801,95 +715,28 @@ if modulo == "🛒 Punto de Venta (POS)":
                 stock_minimo = float(prod_info.get("stock_minimo", 0))
                 es_critico = stock_actual <= stock_minimo
 
-                # 3. Renderizado dinámico de la ficha según la vista elegida
-                if st.session_state.pos_vista_ficha == "Grande":
-                    with st.container(border=True):
-                        col_foto, col_datos = st.columns([1, 2])
-                        with col_foto:
-                            img_abs = obtener_ruta_imagen_absoluta(prod_info.get("imagen_path"))
-                            if img_abs:
-                                st.image(img_abs, caption=prod_info["nombre"], width=120)
-                            else:
-                                st.markdown(
-                                    """
-                                    <div style="border: 2px dashed #bbb; border-radius: 8px; padding: 25px; text-align: center; color: #777;">
-                                        📷<br><small>Sin foto</small>
-                                    </div>
-                                    """,
-                                    unsafe_allow_html=True
-                                )
-                        with col_datos:
-                            st.subheader(prod_info["nombre"])
-                            st.markdown(f"**Código:** `{prod_info['codigo']}`")
-                            st.markdown(f"**Precio de Venta:** {fmt_moneda_md(prod_info['precio_venta'])}")
-                            
+                # 3. Ficha del producto elegido (la foto solo si existe)
+                with st.container(border=True):
+                    img_abs = obtener_ruta_imagen_absoluta(prod_info.get("imagen_path"))
+                    if img_abs:
+                        col_foto, col_datos = st.columns([1, 3], vertical_alignment="center")
+                        col_foto.image(img_abs, width=96)
+                    else:
+                        col_datos = st.container()
+                    with col_datos:
+                        st.markdown(f"**{html.escape(str(prod_info['nombre']))}**")
+                        st.caption(f"Código {prod_info['codigo']}")
+                        with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+                            st.markdown(
+                                f"<span style='font-size:1.375rem; font-weight:700'>{fmt_moneda(prod_info['precio_venta'])}</span>",
+                                unsafe_allow_html=True,
+                            )
                             if es_critico:
-                                st.markdown(
-                                    f"<div style='background-color: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; font-weight: bold;'>"
-                                    f"⚠️ ¡ALERTA DE STOCK CRÍTICO! — Stock disponible: **{fmt_cantidad(stock_actual)}** unidades (Umbral mínimo: **{fmt_cantidad(stock_minimo)}**)."
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
+                                st.badge(f"Stock {fmt_cantidad(stock_actual)} · mín. {fmt_cantidad(stock_minimo)}",
+                                         icon=":material/warning:", color="red")
                             else:
-                                st.success(f"✅ Stock disponible: **{fmt_cantidad(stock_actual)}** unidades (Mínimo: {fmt_cantidad(stock_minimo)})")
+                                st.badge(f"Stock {fmt_cantidad(stock_actual)}", icon=":material/inventory:", color="green")
 
-                elif st.session_state.pos_vista_ficha == "Compacta":
-                    with st.container(border=True):
-                        col_thumb, col_datos = st.columns([0.8, 3.2], gap="small")
-                        with col_thumb:
-                            img_abs = obtener_ruta_imagen_absoluta(prod_info.get("imagen_path"))
-                            if img_abs:
-                                st.image(img_abs, width=80)
-                            else:
-                                st.markdown(
-                                    """
-                                    <div style="border: 1px dashed #bbb; border-radius: 8px; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #888; background: #fafafa;">
-                                        📦
-                                    </div>
-                                    """,
-                                    unsafe_allow_html=True
-                                )
-                        with col_datos:
-                            st.markdown(f"**{prod_info['nombre']}** (`{prod_info['codigo']}`)")
-                            st.markdown(f"💰 **Precio:** **{fmt_moneda_md(prod_info['precio_venta'])}**")
-                            if es_critico:
-                                st.markdown(
-                                    f"<div style='color: #c62828; font-size: 0.88rem; font-weight: bold; background: #fee2e2; padding: 3px 8px; border-radius: 4px; display: inline-block;'>"
-                                    f"⚠️ Stock Crítico: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
-                            else:
-                                st.markdown(
-                                    f"<div style='color: #166534; font-size: 0.88rem; font-weight: bold; background: #dcfce7; padding: 3px 8px; border-radius: 4px; display: inline-block;'>"
-                                    f"✅ Stock: {fmt_cantidad(stock_actual)} unid. (Mín: {fmt_cantidad(stock_minimo)})"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
-
-                else:  # "Sin imagen"
-                    with st.container(border=True):
-                        c_nom, c_pre, c_stk = st.columns([2.2, 1.2, 1.6], gap="small")
-                        with c_nom:
-                            st.markdown(f"**{prod_info['nombre']}** (`{prod_info['codigo']}`)")
-                        with c_pre:
-                            st.markdown(f"💰 **{fmt_moneda_md(prod_info['precio_venta'])}**")
-                        with c_stk:
-                            if es_critico:
-                                st.markdown(
-                                    f"<div style='color: #c62828; font-weight: bold; font-size: 0.85rem; background: #fee2e2; padding: 3px 6px; border-radius: 4px; text-align: center;'>"
-                                    f"⚠️ Stock: {fmt_cantidad(stock_actual)}"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
-                            else:
-                                st.markdown(
-                                    f"<div style='color: #166534; font-weight: bold; font-size: 0.85rem; background: #dcfce7; padding: 3px 6px; border-radius: 4px; text-align: center;'>"
-                                    f"✅ Stock: {fmt_cantidad(stock_actual)}"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
-                
                 cant_en_carrito = sum(
                     item["cantidad"] for item in st.session_state.carrito if item["producto_id"] == prod_info["id"]
                 )
@@ -942,13 +789,13 @@ if modulo == "🛒 Punto de Venta (POS)":
                         )
                         if monto and monto > 0 and prod_info["precio_venta"] > 0:
                             cantidad = round(monto / prod_info["precio_venta"], 4)
-                            st.info(f"⚖️ Equivale a **{fmt_cantidad(cantidad)}** unidades/kg")
+                            st.info(f"Equivale a **{fmt_cantidad(cantidad)}** unidades/kg")
                         else:
                             cantidad = 0.0
 
                 with col_btn:
                     deshabilitar_agregar = (disponible_para_agregar <= 0) or (cantidad <= 0)
-                    if st.button("➕ AGREGAR AL CARRITO", type="primary", disabled=deshabilitar_agregar, width="stretch"):
+                    if st.button(":material/add: AGREGAR AL CARRITO", type="primary", disabled=deshabilitar_agregar, width="stretch"):
                         if disponible_para_agregar <= 0:
                             st.error("No hay más unidades disponibles de este producto.")
                         elif cantidad <= 0:
@@ -978,7 +825,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                             # fue instanciado en este run, así que no se puede tocar su key
                             # acá: se deja una bandera que se aplica ANTES de dibujarlo.
                             st.session_state["_pos_reset_cant"] = True
-                            st.toast(f"✅ Agregado: {prod_info['nombre']} x{fmt_cantidad(cantidad)} ({fmt_moneda_md(cantidad * prod_info['precio_venta'])})", icon="🛒")
+                            st.toast(f"Agregado: {prod_info['nombre']} x{fmt_cantidad(cantidad)} ({fmt_moneda_md(cantidad * prod_info['precio_venta'])})", icon="")
                             st.rerun()
 
     # Panel derecho: Carrito de compras, Selector de Cliente, Medio de pago y Cobro
@@ -995,7 +842,7 @@ if modulo == "🛒 Punto de Venta (POS)":
             mapa_clientes[lbl] = c
 
         cliente_elegido_label = st.selectbox(
-            "👤 Cliente:",
+            ":material/person: Cliente",
             opciones_clientes,
             help="Por defecto Consumidor Final. Seleccioná un cliente para asociar la venta, cuenta corriente o enviar comprobante por WhatsApp."
         )
@@ -1017,12 +864,12 @@ if modulo == "🛒 Punto de Venta (POS)":
                 f"""
                 <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 9px; padding: 10px 14px; margin: 8px 0 12px 0;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 700; color: #1E3A8A; font-size: 0.95rem;">⭐ Club de Puntos: {cliente_pos['nombre']}</span>
+                        <span style="font-weight: 700; color: #1E3A8A; font-size: 0.95rem;">Club de Puntos: {cliente_pos['nombre']}</span>
                         <span style="background: #2563EB; color: white; padding: 2px 10px; border-radius: 12px; font-weight: 800; font-size: 0.95rem;">{fmt_puntos(pts_actual)} pts</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; font-size: 0.82rem; color: #1E40AF;">
-                        <span>🎁 Canjes en carrito: <b>{fmt_puntos(pts_canjes_carrito)} pts</b></span>
-                        <span>✨ Saldo disponible: <b style="color: {color_saldo};">{fmt_puntos(pts_restantes)} pts</b></span>
+                        <span>Canjes en carrito: <b>{fmt_puntos(pts_canjes_carrito)} pts</b></span>
+                        <span>Saldo disponible: <b style="color: {color_saldo};">{fmt_puntos(pts_restantes)} pts</b></span>
                     </div>
                 </div>
                 """,
@@ -1033,13 +880,13 @@ if modulo == "🛒 Punto de Venta (POS)":
         if "ultimo_ticket" in st.session_state and st.session_state["ultimo_ticket"]:
             tk = st.session_state["ultimo_ticket"]
             with st.container(border=True):
-                st.markdown(f"#### 🧾 Comprobante: Ticket #{tk['venta_id']}")
+                st.markdown(f"#### Comprobante: Ticket #{tk['venta_id']}")
                 st.caption(f"Cliente: **{tk['cliente_nombre']}** | Total: **{fmt_moneda_md(tk['total'])}** ({tk['forma_pago']})")
 
                 c_pdf, c_wa = st.columns([1, 1], gap="small")
                 with c_pdf:
                     st.download_button(
-                        label="📄 Descargar Ticket (PDF 80mm)",
+                        label=":material/download: Descargar Ticket (PDF 80mm)",
                         data=tk["pdf_bytes"],
                         file_name=f"ticket_{tk['venta_id']}.pdf",
                         mime="application/pdf",
@@ -1050,11 +897,11 @@ if modulo == "🛒 Punto de Venta (POS)":
                     if tel:
                         msg_whatsapp = reportes.armar_mensaje_whatsapp_ticket(tk)
                         wa_url = reportes.armar_url_whatsapp(tel, msg_whatsapp)
-                        st.link_button("📲 Enviar por WhatsApp", url=wa_url, width="stretch")
+                        st.link_button(":material/send: Enviar por WhatsApp", url=wa_url, width="stretch")
                     else:
                         st.caption("ℹ️ Sin teléfono para WhatsApp")
 
-                if st.button("✖️ Cerrar Comprobante", key="btn_cerrar_tk", width="stretch"):
+                if st.button(":material/close: Cerrar Comprobante", key="btn_cerrar_tk", width="stretch"):
                     del st.session_state["ultimo_ticket"]
                     st.rerun()
 
@@ -1078,11 +925,11 @@ if modulo == "🛒 Punto de Venta (POS)":
                         if img_item:
                             st.image(img_item, width=44)
                         else:
-                            st.markdown("<div style='font-size: 20px; text-align: center; margin-top: 4px;'>📦</div>", unsafe_allow_html=True)
+                            st.markdown(":material/inventory_2:")
                     with c_info:
                         st.markdown(f"**{item['nombre']}** (`{item['codigo']}`)")
                         if es_canje_item:
-                            st.markdown("<span style='background: #FEF3C7; color: #92400E; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;'>🎁 Canje por Puntos ($ 0,00)</span>", unsafe_allow_html=True)
+                            st.markdown("<span style='background: #FEF3C7; color: #92400E; font-size: 0.75rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; border: 1px solid #FDE68A;'>Canje por Puntos ($ 0,00)</span>", unsafe_allow_html=True)
                             st.caption(f"{fmt_cantidad(item['cantidad'])} unid. | Costo: {pts_tot_item} pts")
                         else:
                             st.caption(f"{fmt_cantidad(item['cantidad'])} unid. x {fmt_moneda_md(item['precio_unitario'])}")
@@ -1092,7 +939,7 @@ if modulo == "🛒 Punto de Venta (POS)":
                         else:
                             st.markdown(f"**{fmt_moneda_md(item['subtotal'])}**")
                     with c_del:
-                        if st.button("❌", key=f"del_cart_{idx}"):
+                        if st.button(":material/close:", key=f"del_cart_{idx}"):
                             st.session_state.carrito.pop(idx)
                             st.rerun()
 
@@ -1101,9 +948,9 @@ if modulo == "🛒 Punto de Venta (POS)":
                         c_canje_act, c_canje_txt = st.columns([1.5, 2.5], gap="small")
                         with c_canje_act:
                             if not es_canje_item:
-                                if st.button("🎁 Canjear con Puntos", key=f"btn_canje_{idx}", width="stretch"):
+                                if st.button(":material/redeem: Canjear con Puntos", key=f"btn_canje_{idx}", width="stretch"):
                                     if not cliente_pos:
-                                        st.warning("⚠️ Debés seleccionar un cliente registrado arriba para canjear con puntos.")
+                                        st.warning("Debés seleccionar un cliente registrado arriba para canjear con puntos.")
                                     else:
                                         pts_cli = round(float(cliente_pos.get("puntos") or 0), 2)
                                         otros_canjes = sum(
@@ -1113,27 +960,27 @@ if modulo == "🛒 Punto de Venta (POS)":
                                         )
                                         pts_disponibles = pts_cli - otros_canjes
                                         if pts_disponibles < pts_tot_item:
-                                            st.error(f"⛔ Puntos insuficientes: Se requieren {pts_tot_item} pts y {cliente_pos['nombre']} solo dispone de {pts_disponibles} pts.")
+                                            st.error(f"Puntos insuficientes: Se requieren {pts_tot_item} pts y {cliente_pos['nombre']} solo dispone de {pts_disponibles} pts.")
                                         else:
                                             item["es_canje"] = True
                                             item["precio_original"] = item.get("precio_original") or item["precio_unitario"]
                                             item["precio_unitario"] = 0.0
                                             item["subtotal"] = 0.0
-                                            st.toast(f"🎁 Canje activado para {item['nombre']} ({pts_tot_item} pts)", icon="🎉")
+                                            st.toast(f"Canje activado para {item['nombre']} ({pts_tot_item} pts)", icon=":material/redeem:")
                                             st.rerun()
                             else:
-                                if st.button("↩️ Cancelar Canje", key=f"btn_cancel_canje_{idx}", width="stretch"):
+                                if st.button(":material/undo: Cancelar Canje", key=f"btn_cancel_canje_{idx}", width="stretch"):
                                     item["es_canje"] = False
                                     p_orig = float(item.get("precio_original") or 0.0)
                                     item["precio_unitario"] = p_orig
                                     item["subtotal"] = round(item["cantidad"] * p_orig, 2)
-                                    st.toast(f"↩️ Canje cancelado para {item['nombre']}", icon="ℹ️")
+                                    st.toast(f"Canje cancelado para {item['nombre']}", icon=":material/info:")
                                     st.rerun()
                         with c_canje_txt:
                             if es_canje_item:
-                                st.caption(f"✨ Canjeando por **{pts_tot_item} pts**")
+                                st.caption(f"Canjeando por **{pts_tot_item} pts**")
                             else:
-                                st.caption(f"🎁 Requiere **{pts_tot_item} pts** ({pts_unit} pts c/u)")
+                                st.caption(f"Requiere **{pts_tot_item} pts** ({pts_unit} pts c/u)")
 
             total_venta = round(sum(item["subtotal"] for item in st.session_state.carrito), 2)
             st.markdown(
@@ -1162,7 +1009,7 @@ if modulo == "🛒 Punto de Venta (POS)":
             # Tarjeta de Datos Bancarios y QR
             if forma_pago in ["Mercado Pago / QR", "Transferencia"]:
                 with st.container(border=True):
-                    st.markdown("#### 📱 Datos para Cobro Electrónico")
+                    st.markdown("#### Datos para Cobro Electrónico")
                     col_qr_vista, col_banco_vista = st.columns([1, 1.5], gap="small")
                     with col_qr_vista:
                         qr_abs = obtener_ruta_imagen_absoluta(config_negocio.get("qr_imagen_path"))
@@ -1181,9 +1028,9 @@ if modulo == "🛒 Punto de Venta (POS)":
 
             if forma_pago == "Cuenta Corriente / Fiado":
                 with st.container(border=True):
-                    st.markdown("#### 👥 Asignar Venta a Cuenta Corriente")
+                    st.markdown("#### Asignar Venta a Cuenta Corriente")
                     if cliente_pos is None:
-                        st.error("⛔ Para fiar en Cuenta Corriente debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
+                        st.error("Para fiar en Cuenta Corriente debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
                         bloquear_venta_fiado = True
                     else:
                         saldo_previsto = cliente_pos["saldo_deudor"] + total_venta
@@ -1195,10 +1042,10 @@ if modulo == "🛒 Punto de Venta (POS)":
                             st.markdown(f"**Saldo Tras la Venta:** **{fmt_moneda_md(saldo_previsto)}**")
 
                         if cliente_pos["limite_credito"] > 0 and saldo_previsto > cliente_pos["limite_credito"]:
-                            st.error(f"⛔ **LÍMITE EXCEDIDO:** La venta superará el límite de crédito configurado ({fmt_moneda_md(cliente_pos['limite_credito'])}).")
+                            st.error(f"**LÍMITE EXCEDIDO:** La venta superará el límite de crédito configurado ({fmt_moneda_md(cliente_pos['limite_credito'])}).")
                             bloquear_venta_fiado = True
                         else:
-                            st.success(f"✅ Venta autorizada a la cuenta de {cliente_pos['nombre']}.")
+                            st.success(f"Venta autorizada a la cuenta de {cliente_pos['nombre']}.")
 
             # CANJE DE PREMIOS POR PUNTOS: Validar cliente y saldo suficiente
             bloquear_canje_puntos = False
@@ -1209,9 +1056,9 @@ if modulo == "🛒 Punto de Venta (POS)":
                     for it in canjes_carrito
                 )
                 with st.container(border=True):
-                    st.markdown("#### 🎁 Canje de Premios con Puntos")
+                    st.markdown("#### Canje de Premios con Puntos")
                     if cliente_pos is None:
-                        st.error("⛔ Para canjear productos con puntos debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
+                        st.error("Para canjear productos con puntos debés seleccionar un cliente registrado arriba en el selector de 'Cliente' (no puede ser Consumidor Final).")
                         bloquear_canje_puntos = True
                     else:
                         pts_cli = round(float(cliente_pos.get("puntos") or 0), 2)
@@ -1224,20 +1071,22 @@ if modulo == "🛒 Punto de Venta (POS)":
                             color_pts = "#16A34A" if saldo_pts_post >= 0 else "#DC2626"
                             st.markdown(f"**Saldo Final:** <b style='color: {color_pts};'>{fmt_puntos(saldo_pts_post)} pts</b>", unsafe_allow_html=True)
                         if pts_cli < total_pts_pedidos:
-                            st.error(f"⛔ **PUNTOS INSUFICIENTES:** Los canjes en el carrito suman {fmt_puntos(total_pts_pedidos)} pts y {cliente_pos['nombre']} solo posee {fmt_puntos(pts_cli)} pts acumulados. Cancelá el canje o ajustá la cantidad.")
+                            st.error(f"**PUNTOS INSUFICIENTES:** Los canjes en el carrito suman {fmt_puntos(total_pts_pedidos)} pts y {cliente_pos['nombre']} solo posee {fmt_puntos(pts_cli)} pts acumulados. Cancelá el canje o ajustá la cantidad.")
                             bloquear_canje_puntos = True
                         else:
-                            st.success(f"✅ Canje autorizado: Se descontarán {fmt_puntos(total_pts_pedidos)} puntos de la cuenta de {cliente_pos['nombre']}.")
+                            st.success(f"Canje autorizado: Se descontarán {fmt_puntos(total_pts_pedidos)} puntos de la cuenta de {cliente_pos['nombre']}.")
 
             st.write("")
             col_btn_vender, col_btn_vaciar = st.columns([2.5, 1], gap="small")
             with col_btn_vaciar:
-                if st.button("🗑️ Vaciar", width="stretch"):
+                if st.button(":material/delete: Vaciar", width="stretch"):
                     st.session_state.carrito = []
                     st.rerun()
             with col_btn_vender:
                 boton_deshabilitado = bloquear_venta_fiado or bloquear_canje_puntos
-                if st.button(f"✅ CONFIRMAR Y COBRAR ({fmt_moneda_md(total_venta)})", type="primary", disabled=boton_deshabilitado, width="stretch"):
+                with st.container(key="btn_cobrar"):
+                    cobrar = st.button(f":material/check_circle: CONFIRMAR Y COBRAR ({fmt_moneda_md(total_venta)})", type="primary", disabled=boton_deshabilitado, width="stretch")
+                if cobrar:
 
                     try:
                         items_venta = [
@@ -1259,11 +1108,12 @@ if modulo == "🛒 Punto de Venta (POS)":
                             for it in st.session_state.carrito if it.get("es_canje")
                         )
 
-                        venta_id, puntos_ganados = models.registrar_venta(
-                            items=items_venta,
-                            forma_pago=forma_pago,
-                            cliente_id=cliente_pos_id
-                        )
+                        with st.spinner("Registrando la venta..."):
+                            venta_id, puntos_ganados = models.registrar_venta(
+                                items=items_venta,
+                                forma_pago=forma_pago,
+                                cliente_id=cliente_pos_id
+                            )
 
                         puntos_balance = 0
                         if cliente_pos_id:
@@ -1308,7 +1158,7 @@ if modulo == "🛒 Punto de Venta (POS)":
 
                         st.session_state.carrito = []
                         st.balloons()
-                        st.success(f"🎉 ¡Venta #{venta_id} confirmada por {fmt_moneda_md(total_ticket)} ({forma_pago})!")
+                        st.success(f"¡Venta #{venta_id} confirmada por {fmt_moneda_md(total_ticket)} ({forma_pago})!")
                         st.rerun()
                     except models.InsufficientStockError as err:
                         st.error(f"Stock insuficiente: {err}")
@@ -1319,34 +1169,34 @@ if modulo == "🛒 Punto de Venta (POS)":
 # ==============================================================================
 # MÓDULO 2: CUENTAS CORRIENTES / CLIENTES ("LA LIBRETA")
 # ==============================================================================
-elif modulo == "👥 Cuentas Corrientes / Clientes":
-    st.header("👥 Cuentas Corrientes / Clientes (\"La Libreta\")")
+elif modulo == ":material/group: Cuentas Corrientes / Clientes":
+    st.header(":material/group: Cuentas Corrientes / Clientes (\"La Libreta\")")
     st.caption("Control de fiados, límites de crédito, registro de abonos e historial de cuenta por cliente.")
 
     # Resumen Financiero de Cuentas Corrientes
     resumen_deuda = models.obtener_resumen_deuda_total()
     col_k1, col_k2, col_k3 = st.columns(3)
-    col_k1.metric("💸 Deuda Total en la Calle", f"{fmt_moneda(resumen_deuda.get('total_deuda', 0.0))}")
-    col_k2.metric("⚠️ Clientes con Deuda Activa", f"{resumen_deuda.get('clientes_con_deuda', 0)} clientes")
-    col_k3.metric("👤 Clientes Registrados", f"{resumen_deuda.get('total_clientes', 0)}")
+    col_k1.metric(":material/account_balance_wallet: Deuda Total en la Calle", f"{fmt_moneda(resumen_deuda.get('total_deuda', 0.0))}")
+    col_k2.metric(":material/warning: Clientes con Deuda Activa", f"{resumen_deuda.get('clientes_con_deuda', 0)} clientes")
+    col_k3.metric(":material/person: Clientes Registrados", f"{resumen_deuda.get('total_clientes', 0)}")
 
     st.markdown("---")
 
     _tabs_clientes = [
-        "📋 Libreta de Clientes",
-        "➕ Nuevo Cliente",
-        "💵 Registrar Abono / Pago",
-        "📜 Ficha e Historial de Movimientos",
+        ":material/menu_book: Libreta de Clientes",
+        ":material/person_add: Nuevo Cliente",
+        ":material/payments: Registrar Abono / Pago",
+        ":material/history: Ficha e Historial de Movimientos",
     ]
     if es_admin:
-        _tabs_clientes.append("✏️ Modificar / Dar de baja")
+        _tabs_clientes.append(":material/edit: Modificar / Dar de baja")
     _tabs_obj = st.tabs(_tabs_clientes)
     tab_c_lista, tab_c_nuevo, tab_c_abono, tab_c_ficha = _tabs_obj[:4]
     tab_c_edit = _tabs_obj[4] if es_admin else None
 
     # 1. Catálogo / Libreta de Clientes
     with tab_c_lista:
-        busqueda_cli = st.text_input("🔍 Buscar cliente por nombre o teléfono:", "")
+        busqueda_cli = st.text_input(":material/search: Buscar cliente por nombre o teléfono:", "")
         clientes = models.obtener_clientes(busqueda=busqueda_cli or None)
 
         if not clientes:
@@ -1361,17 +1211,17 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                         if reportes.normalizar_tel_ar(c['telefono']):  # sin número completo, sin link
                             tel_vis = str(c['telefono']).replace('[', '').replace(']', '')
                             tel_txt = f"[{tel_vis}]({reportes.armar_url_whatsapp(c['telefono'], '')})"
-                        st.caption(f"📞 Tel: {tel_txt} | ✉️ {c['email'] or 'Sin correo'}")
+                        st.caption(f":material/call: {tel_txt} · :material/mail: {c['email'] or 'Sin correo'}")
                     with c2:
                         limite_txt = f"{fmt_moneda_md(c['limite_credito'])}" if c['limite_credito'] > 0 else "Sin límite"
                         st.markdown(f"**Límite de Crédito:** {limite_txt}")
                     with c3:
                         if c["saldo_deudor"] > 0:
-                            st.error(f"🔴 **Debe: {fmt_moneda_md(c['saldo_deudor'])}**")
+                            st.badge(f"Debe {fmt_moneda_md(c['saldo_deudor'])}", icon=":material/error:", color="red")
                         else:
-                            st.success("🟢 **Al día ($ 0,00)**")
+                            st.badge("Al día", icon=":material/check_circle:", color="green")
                     with c4:
-                        st.markdown(f"🏷️ **Puntos:** {fmt_puntos(c.get('puntos', 0))}")
+                        st.markdown(f"**Puntos:** {fmt_puntos(c.get('puntos', 0))}")
     # 2. Alta de Cliente
     with tab_c_nuevo:
         st.subheader("Registrar Nuevo Cliente")
@@ -1390,7 +1240,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                     help="0 = Sin límite de crédito establecido."
                 )
 
-            btn_crear_cli = st.form_submit_button("💾 Guardar Cliente", type="primary")
+            btn_crear_cli = st.form_submit_button(":material/save: Guardar Cliente", type="primary")
             if btn_crear_cli:
                 try:
                     nuevo_cid = models.crear_cliente(
@@ -1399,7 +1249,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                         email=mail_cli,
                         limite_credito=limite_cli
                     )
-                    st.success(f"✅ ¡Cliente '{nom_cli}' registrado con éxito! (ID: {nuevo_cid})")
+                    st.success(f"¡Cliente '{nom_cli}' registrado con éxito! (ID: {nuevo_cid})")
                     st.rerun()
                 except models.BusinessLogicError as e:
                     st.error(f"Error de validación: {e}")
@@ -1408,7 +1258,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
 
     # 3. Registrar Abono / Pago
     with tab_c_abono:
-        st.subheader("💵 Registrar Pago o Abono a Cuenta Corriente")
+        st.subheader(":material/payments: Registrar Pago o Abono a Cuenta Corriente")
         clientes_abono = models.obtener_clientes()
         if not clientes_abono:
             st.info("No hay clientes registrados.")
@@ -1441,7 +1291,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                     st.markdown(f"**Saldo Restante:** :green[**{fmt_moneda_md(nuevo_saldo_previsto)}**]")
                     nota_abono = st.text_input("Nota / Comprobante (Opcional):", placeholder="Ej: Pago parcial efectivo")
 
-                if st.button("✅ Confirmar y Registrar Abono", type="primary"):
+                if st.button(":material/check_circle: Confirmar y Registrar Abono", type="primary"):
                     try:
                         mov_id = models.registrar_abono_cliente(
                             cliente_id=cli_a_abonar["id"],
@@ -1449,7 +1299,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                             metodo_pago=metodo_abono,
                             descripcion=nota_abono or None
                         )
-                        st.success(f"🎉 Abono registrado con éxito (#{mov_id}) por {fmt_moneda_md(monto_abono)}. Nuevo saldo: {fmt_moneda_md(nuevo_saldo_previsto)}")
+                        st.success(f"Abono registrado con éxito (#{mov_id}) por {fmt_moneda_md(monto_abono)}. Nuevo saldo: {fmt_moneda_md(nuevo_saldo_previsto)}")
                         st.rerun()
                     except models.BusinessLogicError as e:
                         st.error(f"Error: {e}")
@@ -1458,7 +1308,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
 
     # 4. Ficha e Historial Cronológico
     with tab_c_ficha:
-        st.subheader("📜 Historial de Cuenta Corriente")
+        st.subheader(":material/history: Historial de Cuenta Corriente")
         clientes_ficha = models.obtener_clientes()
         if not clientes_ficha:
             st.info("No hay clientes registrados.")
@@ -1470,17 +1320,17 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
             with st.container(border=True):
                 c_f1, c_f2, c_f3, c_f4 = st.columns([2, 1.5, 1.5, 1.5])
                 c_f1.markdown(f"**Cliente:** {cli_f['nombre']}")
-                c_f1.caption(f"📞 {cli_f['telefono'] or 'S/T'} | ✉️ {cli_f['email'] or 'S/E'}")
+                c_f1.caption(f":material/call: {cli_f['telefono'] or 'Sin teléfono'} · :material/mail: {cli_f['email'] or 'S/E'}")
                 c_f2.markdown(f"**Límite de Crédito:** {fmt_moneda_md(cli_f['limite_credito'])}" if cli_f['limite_credito'] > 0 else "**Límite:** Sin límite")
                 c_f3.markdown(f"**Saldo Deudor:** :red[**{fmt_moneda_md(cli_f['saldo_deudor'])}**]" if cli_f['saldo_deudor'] > 0 else f"**Saldo Deudor:** :green[**{fmt_moneda_md(0)}**]")
-                c_f4.markdown(f"🏷️ **Puntos:** {fmt_puntos(cli_f.get('puntos', 0))}")
+                c_f4.markdown(f"**Puntos:** {fmt_puntos(cli_f.get('puntos', 0))}")
 
             movimientos = models.obtener_movimientos_cliente(cli_f["id"])
             if not movimientos:
                 st.info("Este cliente no tiene movimientos registrados aún.")
             else:
                 df_movs = pd.DataFrame(movimientos)
-                df_movs["tipo_fmt"] = df_movs["tipo"].map({"CARGO": "🔴 CARGO (Compra Fiada)", "PAGO": "🟢 PAGO (Abono)"})
+                df_movs["tipo_fmt"] = df_movs["tipo"].map({"CARGO": "Cargo (compra fiada)", "PAGO": "Pago (abono)"})
                 df_movs["monto_fmt"] = df_movs["monto"].apply(lambda x: f"{fmt_moneda(x)}")
                 df_movs["fecha_hora"] = pd.to_datetime(df_movs["fecha_hora"], utc=True).dt.tz_convert(ZONA_HORARIA).dt.strftime("%d/%m/%Y %H:%M")
                 
@@ -1498,7 +1348,7 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
     # 5. Edición y Baja de Clientes
     if tab_c_edit is not None:  # Solo el Dueño ve esta solapa
         with tab_c_edit:
-            st.subheader("✏️ Modificar o Dar de Baja Cliente")
+            st.subheader(":material/edit: Modificar o Dar de Baja Cliente")
             clientes_edit = models.obtener_clientes()
             if not clientes_edit:
                 st.info("No hay clientes registrados.")
@@ -1517,11 +1367,11 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
                         e_mail = st.text_input("Correo Electrónico", value=cli_ed["email"])
                         e_limite = st.number_input("Límite de Crédito ($)", min_value=0.0, value=float(cli_ed["limite_credito"]), step=5000.0)
 
-                    btn_guardar_cli = st.form_submit_button("💾 Guardar Cambios de Cliente", type="primary")
+                    btn_guardar_cli = st.form_submit_button(":material/save: Guardar Cambios de Cliente", type="primary")
                     if btn_guardar_cli:
                         try:
                             models.actualizar_cliente(cid, e_nom, e_tel, e_mail, e_limite)
-                            st.success("✅ Datos del cliente actualizados.")
+                            st.success("Datos del cliente actualizados.")
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(f"Error: {e}")
@@ -1544,27 +1394,27 @@ elif modulo == "👥 Cuentas Corrientes / Clientes":
 # ==============================================================================
 # MÓDULO 3: GESTIÓN DE PRODUCTOS E INVENTARIO
 # ==============================================================================
-elif modulo == "📦 Productos e Inventario":
-    st.header("📦 Gestión de Productos e Inventario")
+elif modulo == ":material/inventory_2: Productos e Inventario":
+    st.header(":material/inventory_2: Gestión de Productos e Inventario")
 
     # Mensaje de confirmación de la acción anterior (sobrevive al st.rerun())
     if "flash_inventario" in st.session_state:
         st.success(st.session_state.pop("flash_inventario"))
 
     tab_catalogo, tab_nuevo, tab_editar, tab_ajuste, tab_alertas, tab_masiva = st.tabs([
-        "📋 Catálogo de Productos",
-        "➕ Nuevo Producto",
-        "✏️ Editar Producto",
-        "🔄 Ajuste de Stock",
-        "🚨 Monitor de Stock Crítico",
-        "📥 Carga Masiva"
+        ":material/list: Catálogo de Productos",
+        ":material/add_box: Nuevo Producto",
+        ":material/edit: Editar Producto",
+        ":material/sync_alt: Ajuste de Stock",
+        ":material/warning: Monitor de Stock Crítico",
+        ":material/upload_file: Carga Masiva"
     ])
 
     # 1. Catálogo Completo
     with tab_catalogo:
         categorias = models.obtener_categorias()
         
-        with st.expander("📈 Actualización Masiva de Precios"):
+        with st.expander(":material/trending_up: Actualización Masiva de Precios"):
             st.markdown("Aplica un aumento o descuento porcentual a todos los productos o a una categoría específica.")
             
             with st.form("form_act_masiva"):
@@ -1581,9 +1431,9 @@ elif modulo == "📦 Productos e Inventario":
                 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
-                    simular = st.form_submit_button("🔍 Simular / Previsualizar", width="stretch")
+                    simular = st.form_submit_button(":material/search: Simular / Previsualizar", width="stretch")
                 with col_btn2:
-                    aplicar = st.form_submit_button("✅ Aplicar Aumento Masivo", type="primary", width="stretch")
+                    aplicar = st.form_submit_button(":material/check_circle: Aplicar Aumento Masivo", type="primary", width="stretch")
 
             cat_id_masiva = opciones_cat_mas[cat_masiva]
             
@@ -1641,12 +1491,12 @@ elif modulo == "📦 Productos e Inventario":
                         if aplicar:
                             comercio_id_actual = usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT)
                             exitosos = models.actualizar_precios_masivamente(modificados, comercio_id=comercio_id_actual)
-                            st.session_state["flash_inventario"] = f"✅ ¡Aumento masivo aplicado con éxito! Se actualizaron {exitosos} productos."
+                            st.session_state["flash_inventario"] = f"¡Aumento masivo aplicado con éxito! Se actualizaron {exitosos} productos."
                             st.rerun()
 
         col_filtro1, col_filtro2, col_filtro3, col_exp = st.columns([1.8, 1.1, 1, 1.1], gap="small")
         with col_filtro1:
-            busqueda = st.text_input("🔍 Buscar por nombre o código / barra:", "")
+            busqueda = st.text_input(":material/search: Buscar por nombre o código / barra:", "")
         with col_filtro2:
             opciones_cat = {"Todas las categorías": None}
             for c in categorias:
@@ -1665,7 +1515,7 @@ elif modulo == "📦 Productos e Inventario":
             todos_para_exp = models.obtener_productos(comercio_id=usuario_actual.get("comercio_id", models.COMERCIO_ID_DEFAULT))
             excel_bytes = models.generar_excel_inventario(todos_para_exp)
             st.download_button(
-                label="📥 Exportar a Excel",
+                label=":material/download: Exportar a Excel",
                 data=excel_bytes,
                 file_name=f"inventario_productos_{fecha_export}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1701,8 +1551,8 @@ elif modulo == "📦 Productos e Inventario":
                         else:
                             st.markdown(
                                 """<div style="height: 140px; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 8px;">
-                                    <span style="font-size: 2.2rem;">📷</span>
-                                    <small style="font-size: 0.75rem; font-weight: 500; margin-top: 4px;">Sin foto</small>
+                                    <span style="font-size: 0.9rem;">Sin foto</span>
+                                    
                                 </div>""",
                                 unsafe_allow_html=True
                             )
@@ -1714,7 +1564,7 @@ elif modulo == "📦 Productos e Inventario":
                         stock_actual = float(p.get("stock_actual", 0))
                         stock_minimo = float(p.get("stock_minimo", 0))
                         puntos_canje = int(p.get("puntos_canje") or 0)
-                        canje_html = f'<span style="background-color: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; border: 1px solid #fde68a; margin-left: 6px;">🎁 {puntos_canje} pts</span>' if puntos_canje > 0 else ''
+                        canje_html = f'<span style="background-color: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; border: 1px solid #fde68a; margin-left: 6px;">{puntos_canje} pts</span>' if puntos_canje > 0 else ''
 
                         # Nombre del producto
                         st.markdown(f"<div style='font-weight: 700; font-size: 1.05rem; color: #0f172a; margin-top: 6px; line-height: 1.3;'>{nombre_esc}</div>", unsafe_allow_html=True)
@@ -1722,7 +1572,7 @@ elif modulo == "📦 Productos e Inventario":
                         # Badge de categoría y código
                         st.markdown(
                             f"""<div style="margin: 4px 0 6px 0;">
-                                <span style="background-color: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; border: 1px solid #bfdbfe;">🏷️ {cat_esc}</span>
+                                <span style="background-color: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; border: 1px solid #bfdbfe;">{cat_esc}</span>
                                 <span style="color: #64748b; font-size: 0.72rem; margin-left: 6px;">Cod: {cod_esc}</span>
                                 {canje_html}
                             </div>""",
@@ -1741,14 +1591,14 @@ elif modulo == "📦 Productos e Inventario":
                         if stock_actual <= stock_minimo:
                             st.markdown(
                                 f"""<div style="background-color: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
-                                    🚨 Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
+                                    Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
                                 </div>""",
                                 unsafe_allow_html=True
                             )
                         else:
                             st.markdown(
                                 f"""<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 5px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-top: 4px;">
-                                    📦 Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
+                                    Stock: {fmt_cantidad(stock_actual)} (Mín: {fmt_cantidad(stock_minimo)})
                                 </div>""",
                                 unsafe_allow_html=True
                             )
@@ -1761,6 +1611,7 @@ elif modulo == "📦 Productos e Inventario":
                 }
                 .inv-cp-row {
                     display: flex;
+                    flex-wrap: wrap;          /* si no entra, stock y precio pasan a una segunda línea */
                     align-items: center;
                     background-color: #ffffff;
                     border: 1px solid #e2e8f0;
@@ -1798,14 +1649,16 @@ elif modulo == "📦 Productos e Inventario":
                     object-fit: cover;
                 }
                 .inv-cp-info {
-                    flex: 1;
+                    flex: 1 1 12rem;
                     min-width: 0;
                     display: flex;
+                    flex-wrap: wrap;          /* en pantallas angostas, categoría y código pasan abajo */
                     align-items: center;
-                    gap: 8px;
+                    gap: 4px 8px;
                     overflow: hidden;
                 }
                 .inv-cp-title {
+                    flex: 1 1 10rem;          /* el nombre nunca se achica a cero */
                     font-weight: 600;
                     font-size: 0.92rem;
                     color: #0f172a;
@@ -1879,17 +1732,17 @@ elif modulo == "📦 Productos e Inventario":
                     if img_src:
                         thumb_html = f'<div class="inv-cp-thumb"><img src="{img_src}" alt="" loading="lazy" /></div>'
                     else:
-                        thumb_html = '<div class="inv-cp-thumb"><span style="font-size: 1.15rem;">📦</span></div>'
+                        thumb_html = ''  # sin foto no se dibuja un recuadro vacío
 
                     stock_badge = (
-                        f'<span class="inv-cp-stock inv-cp-stock-critico" title="Stock Crítico (Mín: {fmt_cantidad(stock_min)})">🚨 Stock: {fmt_cantidad(stock_act)}</span>'
+                        f'<span class="inv-cp-stock inv-cp-stock-critico" title="Stock Crítico (Mín: {fmt_cantidad(stock_min)})">Stock bajo: {fmt_cantidad(stock_act)}</span>'
                         if es_critico
-                        else f'<span class="inv-cp-stock inv-cp-stock-ok" title="Stock Normal (Mín: {fmt_cantidad(stock_min)})">📦 Stock: {fmt_cantidad(stock_act)}</span>'
+                        else f'<span class="inv-cp-stock inv-cp-stock-ok" title="Stock Normal (Mín: {fmt_cantidad(stock_min)})">Stock: {fmt_cantidad(stock_act)}</span>'
                     )
 
                     pts_canje_val = int(p.get("puntos_canje") or 0)
                     canje_badge = (
-                        f'<span class="inv-cp-badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a;" title="Premio por Puntos">🎁 {pts_canje_val} pts</span>'
+                        f'<span class="inv-cp-badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a;" title="Premio por Puntos">Canje: {pts_canje_val} pts</span>'
                         if pts_canje_val > 0 else ''
                     )
 
@@ -1946,7 +1799,7 @@ elif modulo == "📦 Productos e Inventario":
             margen = st.number_input("Margen de Ganancia (%)", min_value=0.0, value=30.0, step=5.0, format="%.2f", key=f"np_margen_{vnp}")
 
             precio_sugerido = models.calcular_precio_venta(costo, margen)
-            st.info(f"💡 Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido)}**")
+            st.info(f"Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido)}**")
 
             usa_manual = st.checkbox("Sobreescribir precio de venta manualmente", key=f"np_usa_manual_{vnp}")
             precio_manual = None
@@ -1983,7 +1836,7 @@ elif modulo == "📦 Productos e Inventario":
                 key=f"np_puntos_{vnp}"
             )
 
-        if st.button("💾 Guardar Producto", type="primary", key=f"np_guardar_{vnp}"):
+        if st.button(":material/save: Guardar Producto", type="primary", key=f"np_guardar_{vnp}"):
             ruta_img_guardada = None
             try:
                 if imagen_subida is not None:
@@ -2002,7 +1855,7 @@ elif modulo == "📦 Productos e Inventario":
                     imagen_path=ruta_img_guardada,
                     puntos_canje=int(puntos_canje_nuevo)
                 )
-                st.session_state["flash_inventario"] = f"✅ ¡Producto '{nombre.strip()}' creado con éxito! (ID: {nuevo_id})"
+                st.session_state["flash_inventario"] = f"¡Producto '{nombre.strip()}' creado con éxito! (ID: {nuevo_id})"
                 st.session_state["nuevo_prod_version"] = vnp + 1
                 st.rerun()
             except models.BusinessLogicError as e:
@@ -2014,7 +1867,7 @@ elif modulo == "📦 Productos e Inventario":
 
     # 3. Edición Completa de Producto Existente
     with tab_editar:
-        st.subheader("✏️ Edición Completa de Producto")
+        st.subheader(":material/edit: Edición Completa de Producto")
         todos_prods_edit = models.obtener_productos()
 
         if not todos_prods_edit:
@@ -2044,7 +1897,7 @@ elif modulo == "📦 Productos e Inventario":
             col_ed1, col_ed2 = st.columns(2, gap="large")
 
             with col_ed1:
-                st.markdown("#### 📝 Información General y Foto")
+                st.markdown("#### Información General y Foto")
                 codigo_edit = st.text_input(
                     "Código de Barras / SKU *",
                     value=prod_actual["codigo"],
@@ -2075,7 +1928,7 @@ elif modulo == "📦 Productos e Inventario":
                 )
                 cat_edit_id = cat_options_con_ninguna[cat_edit_elegida]
 
-                st.markdown("##### 📷 Fotografía del Producto")
+                st.markdown("##### Fotografía del Producto")
                 img_actual_abs = obtener_ruta_imagen_absoluta(prod_actual.get("imagen_path"))
                 eliminar_foto_check = False
 
@@ -2084,18 +1937,18 @@ elif modulo == "📦 Productos e Inventario":
                     with c_f1:
                         st.image(img_actual_abs, caption="Foto actual", width=120)
                     with c_f2:
-                        eliminar_foto_check = st.checkbox("🗑️ Eliminar foto actual", key=f"del_foto_{kp}")
+                        eliminar_foto_check = st.checkbox(":material/delete: Eliminar foto actual", key=f"del_foto_{kp}")
                 else:
                     st.caption("ℹ️ Sin foto asignada actualmente.")
 
                 nueva_foto_subida = st.file_uploader(
-                    "Subir nueva foto (reemplaza o agrega)",
+                    "Subir nueva foto (JPG / PNG, reemplaza la actual)",
                     type=["jpg", "jpeg", "png"],
                     key=f"upload_foto_{kp}"
                 )
 
             with col_ed2:
-                st.markdown("#### 💰 Precios y Control de Inventario")
+                st.markdown("#### Precios y Control de Inventario")
                 costo_edit = st.number_input(
                     "Precio de Costo ($)",
                     min_value=0.0,
@@ -2114,7 +1967,7 @@ elif modulo == "📦 Productos e Inventario":
                 )
 
                 precio_sugerido_edit = models.calcular_precio_venta(costo_edit, margen_edit)
-                st.info(f"💡 Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido_edit)}**")
+                st.info(f"Precio Calculado Automático: **{fmt_moneda_md(precio_sugerido_edit)}**")
 
                 usa_manual_edit = st.checkbox(
                     "Sobreescribir precio de venta manualmente",
@@ -2166,7 +2019,7 @@ elif modulo == "📦 Productos e Inventario":
             col_save_btn, col_del_btn = st.columns([1.5, 1], gap="medium")
 
             with col_save_btn:
-                if st.button("💾 Guardar Cambios", type="primary", width="stretch", key=f"btn_save_{kp}"):
+                if st.button(":material/save: Guardar Cambios", type="primary", width="stretch", key=f"btn_save_{kp}"):
                     ruta_img_final = None
                     try:
                         if nueva_foto_subida is not None:
@@ -2192,7 +2045,7 @@ elif modulo == "📦 Productos e Inventario":
                         if ruta_img_final or eliminar_foto:
                             borrar_archivo_imagen_local(prod.get("imagen_path"))
                         st.cache_data.clear()
-                        st.session_state["flash_inventario"] = f"✅ ¡Producto '{nombre_edit.strip()}' actualizado con éxito!"
+                        st.session_state["flash_inventario"] = f"¡Producto '{nombre_edit.strip()}' actualizado con éxito!"
                         st.rerun()
                     except models.BusinessLogicError as e:
                         borrar_archivo_imagen_local(ruta_img_final)
@@ -2219,7 +2072,7 @@ elif modulo == "📦 Productos e Inventario":
 
     # 4. Ajuste Rápido de Stock
     with tab_ajuste:
-        st.subheader("🔄 Ajuste de Stock en Almacén")
+        st.subheader(":material/sync_alt: Ajuste de Stock en Almacén")
         todos_los_prods = models.obtener_productos()
 
         if not todos_los_prods:
@@ -2240,7 +2093,7 @@ elif modulo == "📦 Productos e Inventario":
 
             with col_ajuste_izq:
                 with st.container(border=True):
-                    st.markdown("#### 📦 Ajustar Cantidad en Almacén")
+                    st.markdown("#### Ajustar Cantidad en Almacén")
                     tipo_ajuste = st.radio("Método de Ajuste", ["Establecer Conteo Físico Exacto", "Sumar Ingreso de Mercadería"], key=f"aj_tipo_{ka}")
 
                     if tipo_ajuste == "Establecer Conteo Físico Exacto":
@@ -2260,7 +2113,7 @@ elif modulo == "📦 Productos e Inventario":
                     if st.button("Guardar Stock Actual", type="primary", key=f"aj_guardar_{ka}"):
                         try:
                             models.ajustar_stock(prod_a_ajustar["id"], nuevo_stock_val)
-                            st.session_state["flash_inventario"] = f"✅ Stock de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_stock_val)} unidades."
+                            st.session_state["flash_inventario"] = f"Stock de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_stock_val)} unidades."
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(str(e))
@@ -2269,7 +2122,7 @@ elif modulo == "📦 Productos e Inventario":
 
             with col_ajuste_der:
                 with st.container(border=True):
-                    st.markdown("#### ⚙️ Umbral de Stock Mínimo")
+                    st.markdown("#### Umbral de Stock Mínimo")
                     nuevo_minimo = st.number_input(
                         "Stock Mínimo Personalizado",
                         min_value=0.0,
@@ -2282,7 +2135,7 @@ elif modulo == "📦 Productos e Inventario":
                     if st.button("Guardar Stock Mínimo", key=f"aj_guardar_min_{ka}"):
                         try:
                             models.actualizar_stock_minimo(prod_a_ajustar["id"], nuevo_minimo)
-                            st.session_state["flash_inventario"] = f"✅ Stock mínimo de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_minimo)}."
+                            st.session_state["flash_inventario"] = f"Stock mínimo de '{prod_a_ajustar['nombre']}' actualizado a {fmt_cantidad(nuevo_minimo)}."
                             st.rerun()
                         except models.BusinessLogicError as e:
                             st.error(str(e))
@@ -2291,11 +2144,11 @@ elif modulo == "📦 Productos e Inventario":
 
     # 5. Monitor Exclusivo de Stock Crítico
     with tab_alertas:
-        st.subheader("🚨 Artículos que Requieren Reposición Inmediata")
+        st.subheader(":material/warning: Artículos que Requieren Reposición Inmediata")
         bajo_stock_list = models.obtener_productos_bajo_stock()
 
         if not bajo_stock_list:
-            st.success("🎉 ¡Excelente! No hay productos con stock igual o inferior a su mínimo.")
+            st.success("¡Excelente! No hay productos con stock igual o inferior a su mínimo.")
         else:
             st.warning(f"Se encontraron **{len(bajo_stock_list)}** artículos con necesidad de reposición.")
 
@@ -2314,21 +2167,21 @@ elif modulo == "📦 Productos e Inventario":
 
     # 6. Carga Masiva de Productos (Excel / CSV)
     with tab_masiva:
-        st.subheader("📥 Carga Masiva de Productos")
+        st.subheader(":material/upload_file: Carga Masiva de Productos")
         st.caption("Importá nuevos artículos o actualizá precios y stock en lote desde una planilla Excel (.xlsx) o CSV.")
 
         col_p1, col_p2 = st.columns([1, 1], gap="large")
 
         with col_p1:
             with st.container(border=True):
-                st.markdown("#### 📄 Paso 1: Descargar Plantilla de Ejemplo")
+                st.markdown("#### Paso 1: Descargar Plantilla de Ejemplo")
                 st.markdown(
                     "Descargá la planilla modelo con las columnas requeridas:  \n"
                     "`codigo`, `nombre`, `categoria`, `precio_costo`, `precio_venta`, `stock`, `stock_minimo`, `puntos_canje`"
                 )
                 plantilla_bytes = models.generar_plantilla_excel_productos()
                 st.download_button(
-                    label="📄 Descargar Plantilla de Ejemplo (.xlsx)",
+                    label=":material/download: Descargar Plantilla de Ejemplo (.xlsx)",
                     data=plantilla_bytes,
                     file_name="plantilla_productos_ejemplo.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2337,7 +2190,7 @@ elif modulo == "📦 Productos e Inventario":
 
         with col_p2:
             with st.container(border=True):
-                st.markdown("#### 📤 Paso 2: Subir Archivo (.xlsx / .csv)")
+                st.markdown("#### Paso 2: Subir Archivo (.xlsx / .csv)")
                 st.markdown("Seleccioná el archivo con tus productos para procesar.")
                 archivo_subido = st.file_uploader(
                     "Subir archivo Excel o CSV",
@@ -2348,7 +2201,7 @@ elif modulo == "📦 Productos e Inventario":
 
         if archivo_subido is not None:
             st.markdown("---")
-            st.markdown("#### 🔍 Paso 3: Previsualización y Validaciones")
+            st.markdown("#### Paso 3: Previsualización y Validaciones")
 
             df_cargado = None
             try:
@@ -2361,13 +2214,13 @@ elif modulo == "📦 Productos e Inventario":
                         archivo_subido.seek(0)
                         df_cargado = pd.read_csv(archivo_subido, dtype={"codigo": str, "Código": str}, sep=None, engine="python", encoding="latin1")
             except Exception as e:
-                st.error(f"❌ Error al leer el archivo: {e}")
+                st.error(f"Error al leer el archivo: {e}")
 
             if df_cargado is not None:
                 df_cargado = df_cargado.dropna(how="all").reset_index(drop=True)
 
                 if df_cargado.empty:
-                    st.warning("⚠️ El archivo subido no contiene filas con datos.")
+                    st.warning("El archivo subido no contiene filas con datos.")
                 else:
                     # Mapeo normalizado
                     mapeo_prev = {}
@@ -2424,15 +2277,15 @@ elif modulo == "📦 Productos e Inventario":
                         st.metric("Total Filas Detectadas", len(df_cargado))
                     with m2:
                         if not errores_validacion:
-                            st.metric("Validación de Datos", "✅ Sin errores")
+                            st.metric("Validación de Datos", "Sin errores")
                         else:
-                            st.metric("Validación de Datos", f"⚠️ {len(errores_validacion)} fila(s) con aviso")
+                            st.metric("Validación de Datos", f"{len(errores_validacion)} fila(s) con aviso")
                     with m3:
                         cats_en_archivo = [c for c in df_validar["categoria"].dropna().unique().tolist() if str(c).strip()] if "categoria" in df_validar.columns else []
                         st.metric("Categorías en Archivo", len(cats_en_archivo) if cats_en_archivo else 1)
 
                     if errores_validacion:
-                        with st.expander(f"⚠️ Ver detalles de {len(errores_validacion)} fila(s) con observaciones", expanded=True):
+                        with st.expander(f":material/warning: Ver detalles de {len(errores_validacion)} fila(s) con observaciones", expanded=True):
                             for err in errores_validacion[:10]:
                                 st.warning(err)
                             if len(errores_validacion) > 10:
@@ -2442,7 +2295,7 @@ elif modulo == "📦 Productos e Inventario":
                     st.dataframe(df_cargado, width="stretch", hide_index=False)
 
                     st.markdown("---")
-                    st.markdown("#### ✅ Paso 4: Confirmación")
+                    st.markdown("#### Paso 4: Confirmación")
                     st.caption("Al confirmar, se crearán o actualizarán los productos y las categorías inexistentes se darán de alta automáticamente.")
 
                     btn_confirmar = st.button(
@@ -2459,7 +2312,7 @@ elif modulo == "📦 Productos e Inventario":
                             
                             cats_msg = f", {res_imp['categorias_creadas']} categorías nuevas creadas" if res_imp.get("categorias_creadas") else ""
                             msg_exito = (
-                                f"🎉 ¡Carga masiva completada! Se procesaron {res_imp['total']} productos "
+                                f"¡Carga masiva completada! Se procesaron {res_imp['total']} productos "
                                 f"({res_imp['creados']} creados, {res_imp['actualizados']} actualizados{cats_msg})."
                             )
                             st.session_state["flash_inventario"] = msg_exito
@@ -2469,8 +2322,8 @@ elif modulo == "📦 Productos e Inventario":
 # ==============================================================================
 # MÓDULO 4: GESTIÓN DE CATEGORÍAS
 # ==============================================================================
-elif modulo == "🏷️ Categorías":
-    st.header("🏷️ Gestión de Categorías")
+elif modulo == ":material/sell: Categorías":
+    st.header(":material/sell: Gestión de Categorías")
     col_nueva, col_lista = st.columns([1, 1.2], gap="large")
 
     with col_nueva:
@@ -2494,13 +2347,13 @@ elif modulo == "🏷️ Categorías":
             st.info("Aún no existen categorías registradas.")
         else:
             for cat in lista_categorias:
-                with st.expander(f"📁 {cat['nombre']}"):
+                with st.expander(f":material/folder: {cat['nombre']}"):
                     with st.form(f"form_edit_cat_{cat['id']}"):
                         nuevo_nombre = st.text_input("Renombrar categoría", value=cat['nombre'])
                         confirma_baja_cat = st.checkbox("Confirmo dar de baja esta categoría", key=f"chk_baja_cat_{cat['id']}")
                         c_btn_edit, c_btn_del = st.columns(2)
 
-                        btn_editar = c_btn_edit.form_submit_button("💾 Guardar Cambios", type="primary")
+                        btn_editar = c_btn_edit.form_submit_button(":material/save: Guardar Cambios", type="primary")
                         btn_eliminar = c_btn_del.form_submit_button("Dar de baja", type="secondary")
                         
                         if btn_editar:
@@ -2533,18 +2386,17 @@ elif modulo == "🏷️ Categorías":
 # ==============================================================================
 # MÓDULO 5: ARQUEO DE CAJA Y CIERRE DIARIO
 # ==============================================================================
-elif modulo == "📊 Arqueo de Caja / Control Diario":
-    st.header("📊 Control Diario & Cierre de Caja")
+elif modulo == ":material/bar_chart: Arqueo de Caja / Control Diario":
+    st.header(":material/bar_chart: Control Diario & Cierre de Caja")
 
-    col_fecha, col_btn_cierre = st.columns([1, 1.5], gap="large")
-    with col_fecha:
-        fecha_elegida = st.date_input("Fecha de consulta:", value=date.today(), format="DD/MM/YYYY")
+    # Sin columna vacía al lado: en celular se apilaba como un bloque en blanco
+    fecha_elegida = st.date_input("Fecha de consulta:", value=date.today(), format="DD/MM/YYYY", width=320)
 
     resumen = models.obtener_arqueo_caja(fecha_elegida.strftime("%Y-%m-%d"))
 
     # ---> NUEVO FORMULARIO DE CAJA CHICA Y TABLA
-    st.markdown("### 💵 Registro de Caja Chica (Efectivo)")
-    with st.expander("➕ Registrar Ingreso Extra / Egreso Manual", expanded=False):
+    st.markdown("### Registro de Caja Chica (Efectivo)")
+    with st.expander(":material/add: Registrar Ingreso Extra / Egreso Manual", expanded=False):
         with st.form("form_caja_chica"):
             col_cc1, col_cc2, col_cc3 = st.columns([1, 1, 2])
             with col_cc1:
@@ -2554,7 +2406,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
             with col_cc3:
                 concepto_mov = st.text_input("Concepto / Motivo *", placeholder="Ej: Pago a proveedor, Compra de artículos...")
             
-            btn_registrar_cc = st.form_submit_button("✅ Registrar Movimiento", type="primary")
+            btn_registrar_cc = st.form_submit_button(":material/check_circle: Registrar Movimiento", type="primary")
             if btn_registrar_cc:
                 try:
                     tipo_db = "egreso" if tipo_mov == "Egreso" else "ingreso_extra"
@@ -2566,7 +2418,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                         concepto=concepto_mov, 
                         usuario_nombre=usuario_actual.get("nombre", "Desconocido")
                     )
-                    st.success("✅ Movimiento de caja registrado con éxito.")
+                    st.success("Movimiento de caja registrado con éxito.")
                     st.rerun()
                 except models.BusinessLogicError as e:
                     st.error(f"Error: {e}")
@@ -2575,11 +2427,11 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                     
     # Mostrar tabla de movimientos si hay
     if resumen.get("movimientos_caja"):
-        st.markdown("#### 📝 Movimientos de Caja Chica de la Fecha")
+        st.markdown("#### Movimientos de Caja Chica de la Fecha")
         df_movs = pd.DataFrame(resumen["movimientos_caja"])[["fecha", "tipo", "concepto", "monto", "usuario_nombre"]]
         # Formatear la fecha
         df_movs["fecha"] = pd.to_datetime(df_movs["fecha"], utc=True).dt.tz_convert(ZONA_HORARIA).dt.strftime("%H:%M")
-        df_movs["tipo"] = df_movs["tipo"].map({"egreso": "🔴 Egreso", "ingreso_extra": "🟢 Ingreso Extra"})
+        df_movs["tipo"] = df_movs["tipo"].map({"egreso": "Egreso", "ingreso_extra": "Ingreso extra"})
         df_movs["monto"] = df_movs["monto"].apply(lambda x: f"{fmt_moneda(float(x))}")
         df_movs = df_movs.rename(columns={
             "fecha": "Hora", "tipo": "Tipo", "concepto": "Concepto", 
@@ -2590,15 +2442,15 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
     st.markdown("---")
 
     # Métricas Principales (KPI Cards) - Reorganizadas para mostrar el Efectivo Esperado
-    st.subheader("📊 Balance del Día")
+    st.subheader(":material/bar_chart: Balance del Día")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("💰 Total Ventas", f"{fmt_moneda(resumen['total_vendido'])}")
-    m2.metric("💵 Efectivo Esperado", f"{fmt_moneda(resumen['total_efectivo_esperado'])}")
-    m3.metric("📈 Ganancia Estimada", f"{fmt_moneda(resumen['ganancia_estimada'])}")
-    m4.metric("🧾 Tickets", resumen['total_operaciones'])
+    m1.metric(":material/payments: Total Ventas", f"{fmt_moneda(resumen['total_vendido'])}")
+    m2.metric(":material/payments: Efectivo Esperado", f"{fmt_moneda(resumen['total_efectivo_esperado'])}")
+    m3.metric(":material/trending_up: Ganancia Estimada", f"{fmt_moneda(resumen['ganancia_estimada'])}")
+    m4.metric(":material/receipt_long: Tickets", resumen['total_operaciones'])
 
     # Desglose de Efectivo Esperado en expander
-    with st.expander("🔍 Ver Desglose de Efectivo Esperado", expanded=False):
+    with st.expander(":material/search: Ver Desglose de Efectivo Esperado", expanded=False):
         st.write(f"**+ Ventas en Efectivo:** {fmt_moneda_md(resumen.get('ventas_efectivo', 0))}")
         st.write(f"**+ Cobros de Fiado (Efectivo):** {fmt_moneda_md(resumen.get('cobros_fiado_efectivo', 0))}")
         st.write(f"**+ Ingresos Extras (Manual):** {fmt_moneda_md(resumen.get('ingresos_extras', 0))}")
@@ -2608,12 +2460,12 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
     st.markdown("---")
 
     # BOTÓN DESTACADO: REALIZAR CIERRE DE CAJA DEL DÍA
-    st.subheader("🔒 Cierre Oficial de Caja Diario")
+    st.subheader(":material/lock: Cierre Oficial de Caja Diario")
     
     col_cierre_btn, _ = st.columns([1.5, 1])
     with col_cierre_btn:
         sin_ventas = resumen["total_operaciones"] == 0
-        ejecutar_cierre = st.button("🔒 Realizar Cierre de Caja del Día", type="primary", width="stretch", disabled=sin_ventas)
+        ejecutar_cierre = st.button(":material/lock: Realizar Cierre de Caja del Día", type="primary", width="stretch", disabled=sin_ventas)
         if sin_ventas:
             st.caption("No hay ventas para cerrar en esta fecha.")
 
@@ -2624,7 +2476,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
     # Panel de Descarga, WhatsApp y Envío de Correo si se activó el cierre
     if st.session_state.get("cierre_activo") and st.session_state.get("cierre_fecha_activa") == fecha_elegida.strftime("%Y-%m-%d"):
         with st.container(border=True):
-            st.success(f"🎉 **Cierre de Caja procesado para el día {fecha_elegida.strftime('%d/%m/%Y')}**")
+            st.success(f"**Cierre de Caja procesado para el día {fecha_elegida.strftime('%d/%m/%Y')}**")
 
             nombre_neg = config_negocio.get("nombre_negocio", "Mi Comercio")
             pdf_bytes = reportes.generar_pdf_cierre_caja(
@@ -2637,7 +2489,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
 
             with col_acc1:
                 st.download_button(
-                    label="⬇️ Descargar PDF del Cierre",
+                    label=":material/download: Descargar PDF del Cierre",
                     data=pdf_bytes,
                     file_name=f"Cierre_Caja_{fecha_elegida.strftime('%Y-%m-%d')}.pdf",
                     mime="application/pdf",
@@ -2651,12 +2503,12 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                     nombre_negocio=nombre_neg
                 )
                 url_wsp = reportes.armar_url_whatsapp(None, msg_wsp)
-                st.link_button("📲 Compartir Cierre por WhatsApp", url_wsp, width="stretch")
+                st.link_button(":material/send: Compartir Cierre por WhatsApp", url_wsp, width="stretch")
 
             with col_acc3:
                 email_dest = config_negocio.get("email_destinatario", "").strip()
                 if email_dest and config_negocio.get("smtp_usuario") and config_negocio.get("smtp_password"):
-                    if st.button("✉️ Enviar / Reenviar por Email", width="stretch"):
+                    if st.button(":material/mail: Enviar / Reenviar por Email", width="stretch"):
                         exito, mensaje = reportes.enviar_email_cierre(
                             destinatario=email_dest,
                             pdf_bytes=pdf_bytes,
@@ -2669,7 +2521,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                         else:
                             st.error(mensaje)
                 else:
-                    st.caption("ℹ️ Configure el correo en '⚙️ Configuración' para habilitar el envío automático.")
+                    st.caption("ℹ️ Configure el correo en 'Ajustes' para habilitar el envío automático.")
 
             clave_envio = f"email_sent_{fecha_elegida.strftime('%Y-%m-%d')}"
             if not st.session_state.get(clave_envio):
@@ -2683,16 +2535,16 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
                     )
                     st.session_state[clave_envio] = True
                     if exito:
-                        st.info(f"📧 Correo automático: {mensaje}")
+                        st.info(f"Correo automático: {mensaje}")
                     else:
-                        st.warning(f"⚠️ Correo automático: {mensaje}")
+                        st.warning(f"Correo automático: {mensaje}")
 
     st.markdown("---")
 
     col_desglose, col_tickets = st.columns([1, 1.5], gap="large")
 
     with col_desglose:
-        st.subheader("💳 Ventas por Forma de Pago")
+        st.subheader(":material/credit_card: Ventas por Forma de Pago")
         if resumen["desglose_por_forma_pago"]:
             df_desglose = pd.DataFrame(resumen["desglose_por_forma_pago"]).rename(
                 columns={
@@ -2711,7 +2563,7 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
             st.info("No hay ventas registradas en esta fecha.")
 
     with col_tickets:
-        st.subheader("📜 Detalle de Ventas Registradas")
+        st.subheader(":material/history: Detalle de Ventas Registradas")
         if resumen["ventas"]:
             for v in resumen["ventas"]:
                 try:
@@ -2741,8 +2593,8 @@ elif modulo == "📊 Arqueo de Caja / Control Diario":
 # ==============================================================================
 # MÓDULO 6: CONFIGURACIÓN DEL NEGOCIO
 # ==============================================================================
-elif modulo == "⚙️ Configuración del Negocio":
-    st.header("⚙️ Configuración del Comercio")
+elif modulo == ":material/settings: Configuración del Negocio":
+    st.header(":material/settings: Configuración del Comercio")
     st.caption("Administra tus datos bancarios para cobros con QR y la configuración de notificaciones por email.")
 
     if "flash_config" in st.session_state:
@@ -2752,10 +2604,10 @@ elif modulo == "⚙️ Configuración del Negocio":
         col_c1, col_c2 = st.columns(2, gap="large")
 
         with col_c1:
-            st.markdown("### 🏪 Identidad del Negocio")
+            st.markdown("### Identidad del Negocio")
             nombre_neg_input = st.text_input("Nombre de Fantasía del Negocio", value=config_negocio.get("nombre_negocio", "Mi Comercio"))
 
-            st.markdown("#### 🖼️ Logo del Local")
+            st.markdown("#### Logo del Local")
             logo_actual_abs = obtener_ruta_imagen_absoluta(config_negocio.get("logo_imagen_path"))
             eliminar_logo_check = False
             if logo_actual_abs:
@@ -2765,7 +2617,7 @@ elif modulo == "⚙️ Configuración del Negocio":
                 with c_l2:
                     st.write("")
                     st.write("")
-                    eliminar_logo_check = st.checkbox("🗑️ Eliminar Logo", key="del_logo_cfg")
+                    eliminar_logo_check = st.checkbox(":material/delete: Eliminar Logo", key="del_logo_cfg")
             
             logo_subido = st.file_uploader(
                 "Subir o Reemplazar Logo (JPG / PNG / WEBP)",
@@ -2773,13 +2625,13 @@ elif modulo == "⚙️ Configuración del Negocio":
                 key="uploader_logo_cfg"
             )
 
-            st.markdown("### 🏦 Datos Bancarios y QR de Cobro")
+            st.markdown("### Datos Bancarios y QR de Cobro")
             titular_input = st.text_input("Titular de la Cuenta", value=config_negocio.get("titular_cuenta", ""))
             banco_input = st.text_input("Banco o Billetera Virtual (ej: Mercado Pago, Santander)", value=config_negocio.get("banco", ""))
             alias_input = st.text_input("Alias CBU/CVU", value=config_negocio.get("alias", ""))
             cbu_input = st.text_input("CBU / CVU Numérico", value=config_negocio.get("cbu", ""))
 
-            st.markdown("#### 📷 Código QR de Cobro (Estático)")
+            st.markdown("#### Código QR de Cobro (Estático)")
             qr_actual_abs = obtener_ruta_imagen_absoluta(config_negocio.get("qr_imagen_path"))
             if qr_actual_abs:
                 st.image(qr_actual_abs, caption="Código QR cargado actualmente", width=140)
@@ -2791,7 +2643,7 @@ elif modulo == "⚙️ Configuración del Negocio":
             )
 
         with col_c2:
-            st.markdown("### ✉️ Configuración de Correo SMTP")
+            st.markdown("### Configuración de Correo SMTP")
             st.caption("Para el envío automático del PDF de Cierre de Caja.")
 
             smtp_srv_input = st.text_input("Servidor SMTP", value=config_negocio.get("smtp_servidor", "smtp.gmail.com"))
@@ -2800,7 +2652,7 @@ elif modulo == "⚙️ Configuración del Negocio":
             smtp_pwd_input = st.text_input("Contraseña de Aplicación", value=config_negocio.get("smtp_password", ""), type="password", help="En Gmail, utiliza una 'Contraseña de Aplicación' generada desde la seguridad de Google.")
             email_dest_input = st.text_input("Email Destinatario del Cierre Diario", value=config_negocio.get("email_destinatario", ""), placeholder="dueno@negocio.com")
 
-        guardar_cfg_btn = st.form_submit_button("💾 Guardar Configuración", type="primary")
+        guardar_cfg_btn = st.form_submit_button(":material/save: Guardar Configuración", type="primary")
 
         if guardar_cfg_btn:
             ruta_qr_final = config_negocio.get("qr_imagen_path")
@@ -2832,7 +2684,7 @@ elif modulo == "⚙️ Configuración del Negocio":
             if guardar_configuracion(nueva_config):
                 if logo_subido or eliminar_logo_check:
                     borrar_archivo_imagen_local(config_negocio.get("logo_imagen_path"))
-                st.success("✅ Configuración guardada correctamente.")
+                st.success("Configuración guardada correctamente.")
                 st.rerun()
             else:
                 st.error("Error al persistir la configuración.")
@@ -2840,14 +2692,14 @@ elif modulo == "⚙️ Configuración del Negocio":
     st.markdown("---")
 
     # PANEL: COPIA DE SEGURIDAD Y RESTAURACIÓN (SNAPSHOT)
-    st.subheader("💾 Respaldo y Restauración de Base de Datos")
+    st.subheader(":material/save: Respaldo y Restauración de Base de Datos")
     st.caption("Crea una instantánea completa (Snapshot JSON) de tu negocio o restaura tus datos.")
 
     with st.container(border=True):
         col_bk1, col_bk2 = st.columns([1, 1], gap="large")
 
         with col_bk1:
-            st.markdown("#### 📦 Descargar Copia de Seguridad")
+            st.markdown("#### Descargar Copia de Seguridad")
             st.markdown(
                 "Exporta todos los registros de las tablas principales (**categorías, productos, clientes, ventas, detalles y movimientos de caja**) en un archivo JSON descargable."
             )
@@ -2856,7 +2708,7 @@ elif modulo == "⚙️ Configuración del Negocio":
             nombre_archivo_backup = f"backup_sistema_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
             st.download_button(
-                label="📦 Descargar Copia de Seguridad Completa (JSON)",
+                label=":material/download: Descargar Copia de Seguridad Completa (JSON)",
                 data=backup_json_str,
                 file_name=nombre_archivo_backup,
                 mime="application/json",
@@ -2865,7 +2717,7 @@ elif modulo == "⚙️ Configuración del Negocio":
             )
 
         with col_bk2:
-            st.markdown("#### 📥 Restaurar desde Copia de Seguridad")
+            st.markdown("#### Restaurar desde Copia de Seguridad")
             st.caption("Recupera tus datos cargando un archivo de respaldo previo.")
 
             archivo_respaldo = st.file_uploader(
@@ -2890,17 +2742,17 @@ elif modulo == "⚙️ Configuración del Negocio":
                     cant_clis = len(tablas_preview.get("clientes", [])) if isinstance(tablas_preview, dict) else 0
 
                     st.info(
-                        f"📅 **Fecha del Backup:** {fecha_bk_fmt}  \n"
-                        f"📦 **Productos:** {cant_prods} | 👥 **Clientes:** {cant_clis}"
+                        f"**Fecha del Backup:** {fecha_bk_fmt}  \n"
+                        f"**Productos:** {cant_prods} | **Clientes:** {cant_clis}"
                     )
 
                     chk_restaurar = st.checkbox(
-                        "⚠️ Confirmo que deseo restaurar la base de datos con esta copia",
+                        "Confirmo que deseo restaurar la base de datos con esta copia",
                         key="chk_confirmar_restauracion"
                     )
 
                     btn_restaurar = st.button(
-                        "🔄 Restaurar Base de Datos",
+                        ":material/restore: Restaurar Base de Datos",
                         type="primary",
                         disabled=not chk_restaurar,
                         width="stretch",
@@ -2915,23 +2767,23 @@ elif modulo == "⚙️ Configuración del Negocio":
                         if res_rest.get("ok"):
                             partes = [f"{v} {k}" for k, v in res_rest.get("resumen", {}).items() if v > 0]
                             st.session_state["flash_config"] = (
-                                f"🎉 ¡Base de datos restaurada con éxito! Se restauraron: {', '.join(partes)}. "
+                                f"¡Base de datos restaurada con éxito! Se restauraron: {', '.join(partes)}. "
                                 "Por favor refrescá la aplicación (recargá la página) para actualizar la vista de todos los módulos."
                             )
                             st.rerun()
                         else:
-                            st.error(f"❌ Error al restaurar la copia de seguridad: {res_rest.get('error')}")
+                            st.error(f"Error al restaurar la copia de seguridad: {res_rest.get('error')}")
 
                 except json.JSONDecodeError:
-                    st.error("❌ El archivo seleccionado no contiene un formato JSON válido.")
+                    st.error("El archivo seleccionado no contiene un formato JSON válido.")
                 except Exception as e:
-                    st.error(f"❌ Error al procesar el archivo: {e}")
+                    st.error(f"Error al procesar el archivo: {e}")
 
     st.markdown("---")
 
     # ZONA DE MANTENIMIENTO / PUESTA A CERO (solo Dueño)
     if not es_admin:
-        st.error("⛔ Solo el Dueño puede acceder al mantenimiento del sistema.")
+        st.error("Solo el Dueño puede acceder al mantenimiento del sistema.")
         st.stop()
 
     # La versión cambia tras cada intento (éxito o error) para que los widgets de confirmación
@@ -2946,7 +2798,7 @@ elif modulo == "⚙️ Configuración del Negocio":
         else:
             st.error(msg_reset[1])
 
-    with st.expander("⚠️ Zona de Mantenimiento / Puesta a Cero", expanded=bool(msg_reset)):
+    with st.expander(":material/warning: Zona de Mantenimiento / Puesta a Cero", expanded=bool(msg_reset)):
         st.warning("**Puesta a cero de datos de prueba**")
         st.markdown(
             "Pensada para limpiar los datos de prueba antes de empezar a operar. **No se borra nada:** "
@@ -3036,14 +2888,14 @@ elif modulo == "⚙️ Configuración del Negocio":
                 st.session_state["_pos_reset_cant"] = True
                 st.session_state["reset_msg"] = (
                     "ok",
-                    "🎉 **Puesta a cero completada.** " + texto,
+                    "**Puesta a cero completada.** " + texto,
                 )
             except models.BusinessLogicError as e:
-                st.session_state["reset_msg"] = ("error", f"❌ No se cambió nada: {e}")
+                st.session_state["reset_msg"] = ("error", f"No se cambió nada: {e}")
             except Exception as e:
                 st.session_state["reset_msg"] = (
                     "error",
-                    f"❌ Error al restablecer la base de datos. No se modificó ningún dato. Detalle: {e}",
+                    f"Error al restablecer la base de datos. No se modificó ningún dato. Detalle: {e}",
                 )
             st.session_state["reset_ver"] = ver_reset + 1
             st.rerun()
